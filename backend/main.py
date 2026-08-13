@@ -11,13 +11,34 @@ Then open http://127.0.0.1:8000/api/health in a browser.
 """
 
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, text
+
+from database import engine
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Runs once when the server starts, before it accepts any requests.
+    # `SELECT 1` is a trivial query that succeeds only if the database is
+    # reachable and the credentials are good — a quick real connection test.
+    try:
+        with Session(engine) as session:
+            session.exec(text("SELECT 1"))
+        print("Database connection: OK")
+    except Exception as exc:
+        print(f"Database connection: FAILED — {exc}")
+        raise
+    yield
+    # Nothing to clean up on shutdown yet.
+
 
 # `app` is the application object. Uvicorn looks for this exact variable when you
 # run `uvicorn main:app` — "main" is this file, "app" is this name.
-app = FastAPI(title="Dexter's Library API")
+app = FastAPI(title="Dexter's Library API", lifespan=lifespan)
 
 
 # Which websites are allowed to call this API. Without this, your browser refuses to

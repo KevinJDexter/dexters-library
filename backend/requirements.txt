@@ -7,3 +7,6 @@
 
 fastapi          # The web framework — turns Python functions into HTTP endpoints
 uvicorn[standard]  # The web server that actually runs FastAPI
+sqlmodel         # ORM — lets us talk to Postgres as Python objects instead of raw SQL
+psycopg[binary]  # PostgreSQL driver. [binary] skips compiling C code on install
+python-dotenv    # Loads backend/.env into the environment for local dev
