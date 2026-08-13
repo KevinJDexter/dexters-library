@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { App } from './app';
+import { environment } from '../environments/environment';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -26,7 +27,9 @@ describe('App', () => {
     // The component's httpResource fires a real (intercepted) request on creation.
     // Flush it so the resource settles and whenStable() doesn't hang waiting on it.
     const httpMock = TestBed.inject(HttpTestingController);
-    httpMock.expectOne('http://127.0.0.1:8000/api/health').flush({ status: 'ok', message: 'ok' });
+    httpMock
+      .expectOne(`${environment.apiUrl}/api/health`)
+      .flush({ status: 'ok', message: 'ok' });
 
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;

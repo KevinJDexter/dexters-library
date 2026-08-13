@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { httpResource } from '@angular/common/http';
 
+import { environment } from '../environments/environment';
+
 /** Shape of the JSON coming back from the Python API's /api/health endpoint. */
 interface HealthResponse {
   status: string;
@@ -15,8 +17,7 @@ interface HealthResponse {
   styleUrl: './app.css',
 })
 export class App {
-  // TODO: hardcoded for local dev. Move to environment config before deploying.
-  private readonly apiUrl = 'http://127.0.0.1:8000';
+  private readonly apiUrl = environment.apiUrl;
 
   /**
    * `httpResource` fires the request automatically and hands back a set of signals:
