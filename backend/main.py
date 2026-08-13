@@ -64,5 +64,18 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    """Confirms the API is alive. The frontend calls this on page load."""
-    return {"status": "ok", "message": "Hello from Python"}
+    """Confirms the API is alive and can reach the database."""
+    try:
+        with Session(engine) as session:
+            session.exec(text("SELECT 1"))
+        database_status = "ok"
+        message = "Hello from Python and Postgres"
+    except Exception:
+        database_status = "unreachable"
+        message = "Hello from Python"
+
+    return {
+        "status": "ok",
+        "message": message,
+        "database": database_status,
+    }
