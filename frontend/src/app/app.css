@@ -1,0 +1,44 @@
+/* Deliberately minimal. Real styling comes later — this just needs to be readable
+   on a phone and not look broken. */
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+}
+
+.subtitle {
+  margin: 0 0 2rem;
+  color: #555;
+}
+
+.status {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #ddd;
+}
+
+.status p {
+  margin: 0;
+}
+
+.good {
+  color: #1a6b2a;
+}
+
+.bad {
+  color: #a02020;
+}
+
+code {
+  background: #f0f0f0;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+}

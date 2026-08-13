@@ -1,12 +1,30 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { httpResource } from '@angular/common/http';
+
+/** Shape of the JSON coming back from the Python API's /api/health endpoint. */
+interface HealthResponse {
+  status: string;
+  message: string;
+}
 
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
 export class App {
-  protected readonly title = signal('frontend');
+  // TODO: hardcoded for local dev. Move to environment config before deploying.
+  private readonly apiUrl = 'http://127.0.0.1:8000';
+
+  /**
+   * `httpResource` fires the request automatically and hands back a set of signals:
+   * `.value()`, `.isLoading()`, `.error()`. No subscribe, no unsubscribe, no leak.
+   *
+   * The URL is wrapped in an arrow function on purpose — that makes it reactive.
+   * If the URL were built from a signal, changing that signal would re-fire the
+   * request by itself. Nothing here depends on a signal yet, but the shape is right.
+   */
+  protected readonly health = httpResource<HealthResponse>(() => `${this.apiUrl}/api/health`);
 }

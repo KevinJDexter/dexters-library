@@ -10,6 +10,8 @@ Run it locally with:
 Then open http://127.0.0.1:8000/api/health in a browser.
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,13 +20,18 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="Dexter's Library API")
 
 
-# The Angular dev server runs on port 4200. Without this block, your browser will
-# refuse to let the frontend talk to the backend, because they're on different
-# ports and the browser treats that as a different site.
-ALLOWED_ORIGINS = [
-    "http://localhost:4200",
-    "http://127.0.0.1:4200",
-]
+# Which websites are allowed to call this API. Without this, your browser refuses to
+# let the frontend talk to the backend, because they're on different addresses and it
+# treats that as a different site.
+#
+# `os.environ.get(name, default)` reads an environment variable, falling back to the
+# default when it isn't set. So: locally nothing is set and we get the dev servers;
+# on Render we'll set ALLOWED_ORIGINS to the deployed frontend's URL. Same code,
+# different behaviour per environment, and no URLs baked into git.
+ALLOWED_ORIGINS = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:4200,http://127.0.0.1:4200",
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,

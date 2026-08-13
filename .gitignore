@@ -18,7 +18,10 @@ venv/
 .env.local
 *.env
 
-# --- Editors / OS ---
+# --- Editors / OS / AI tooling ---
+# Claude Code's machine-specific settings. The shared CLAUDE.md IS committed —
+# this file is just local preferences and shouldn't follow the repo around.
+.claude/settings.local.json
 .vscode/
 .idea/
 .DS_Store
