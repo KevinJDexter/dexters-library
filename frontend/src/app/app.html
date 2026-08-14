@@ -1,18 +1,22 @@
-<main>
-  <h1>Dexter's Library</h1>
-  <p class="subtitle">A tracker for my own game collection and achievements.</p>
+<mat-toolbar class="shell-toolbar">
+  <span class="brand">🎮 Dexter's Library</span>
+  <span class="spacer"></span>
+  <!-- One nav link per collection; Board Games and friends slot in beside
+       Video Games when they exist. -->
+  <a mat-button routerLink="/video-games" routerLinkActive="active">Video Games</a>
+  <a mat-button routerLink="/stats" routerLinkActive="active">Stats</a>
+</mat-toolbar>
 
-  <section class="status" aria-live="polite">
-    @if (health.isLoading()) {
-      <p>Checking the backend&hellip;</p>
-    } @else if (health.error()) {
-      <p class="bad">
-        Can't reach the API. Is <code>uvicorn</code> running on port 8000?
-      </p>
-    } @else {
-      <p class="good">API says: {{ health.value()?.message }}</p>
-    }
-  </section>
+<main>
+  <router-outlet />
 </main>
 
-<router-outlet />
+<footer class="api-status" aria-live="polite">
+  @if (health.isLoading()) {
+    Checking the backend&hellip;
+  } @else if (health.error()) {
+    Can't reach the API — is <code>uvicorn</code> running on port 8000?
+  } @else {
+    API: {{ health.value()?.message }}
+  }
+</footer>

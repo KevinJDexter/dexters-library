@@ -1,44 +1,38 @@
-/* Deliberately minimal. Real styling comes later — this just needs to be readable
-   on a phone and not look broken. */
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.shell-toolbar {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.brand {
+  font: var(--mat-sys-title-large);
+}
+
+.spacer {
+  flex: 1;
+}
+
+a.active {
+  font-weight: bold;
+}
 
 main {
-  max-width: 40rem;
+  flex: 1;
+  padding: 16px;
+  max-width: 960px;
+  width: 100%;
   margin: 0 auto;
-  padding: 2rem 1rem;
-  font-family: system-ui, sans-serif;
-  line-height: 1.5;
+  box-sizing: border-box;
 }
 
-h1 {
-  margin: 0 0 0.25rem;
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
-}
-
-.subtitle {
-  margin: 0 0 2rem;
-  color: #555;
-}
-
-.status {
-  padding: 1rem;
-  border-radius: 0.5rem;
-  border: 1px solid #ddd;
-}
-
-.status p {
-  margin: 0;
-}
-
-.good {
-  color: #1a6b2a;
-}
-
-.bad {
-  color: #a02020;
-}
-
-code {
-  background: #f0f0f0;
-  padding: 0.1rem 0.3rem;
-  border-radius: 0.2rem;
+.api-status {
+  padding: 8px 16px;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+  text-align: center;
 }

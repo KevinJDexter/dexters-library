@@ -1,0 +1,50 @@
+<div class="toolbar">
+  <mat-form-field appearance="outline" class="search" subscriptSizing="dynamic">
+    <mat-label>Search titles</mat-label>
+    <input
+      matInput
+      type="search"
+      [value]="searchTerm()"
+      (input)="searchTerm.set($any($event.target).value)"
+    />
+    <mat-icon matSuffix>search</mat-icon>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="platform" subscriptSizing="dynamic">
+    <mat-label>Platform</mat-label>
+    <mat-select [value]="platformFilter()" (valueChange)="platformFilter.set($event)">
+      <mat-option value="all">All platforms</mat-option>
+      @for (platform of platforms(); track platform) {
+        <mat-option [value]="platform">{{ platform }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<!-- A listbox with nothing selected means "no status filter", hence the
+     null-to-'all' fallback on the change event. -->
+<mat-chip-listbox
+  class="status-chips"
+  aria-label="Filter by status"
+  [value]="statusFilter()"
+  (change)="statusFilter.set($event.value ?? 'all')"
+>
+  <mat-chip-option value="all">All</mat-chip-option>
+  <mat-chip-option value="playing">Playing</mat-chip-option>
+  <mat-chip-option value="backlog">Backlog</mat-chip-option>
+  <mat-chip-option value="finished">Finished</mat-chip-option>
+</mat-chip-listbox>
+
+@if (filtered().length > 0) {
+  <div class="grid">
+    @for (game of filtered(); track game.id) {
+      <app-video-game-card [game]="game" />
+    }
+  </div>
+} @else {
+  <p class="empty">No games match. Loosen the filters or add one below.</p>
+}
+
+<a mat-fab class="add-fab" routerLink="/video-games/new" aria-label="Add a game">
+  <mat-icon>add</mat-icon>
+</a>

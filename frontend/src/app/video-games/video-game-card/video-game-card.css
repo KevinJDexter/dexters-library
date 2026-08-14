@@ -1,0 +1,37 @@
+.cover-placeholder {
+  /* 3:4 keeps every card the same height whether or not it has art, so the
+     grid doesn't jitter when real covers start arriving. */
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.cover-placeholder mat-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+}
+
+img[mat-card-image] {
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+mat-card-actions {
+  display: flex;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.status-playing {
+  background: var(--mat-sys-primary-container);
+}
+
+.status-finished {
+  background: var(--mat-sys-tertiary-container);
+}

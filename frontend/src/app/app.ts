@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { httpResource } from '@angular/common/http';
+import { MatButtonModule } from '@angular/material/button';
+import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { environment } from '../environments/environment';
 
@@ -8,11 +10,12 @@ import { environment } from '../environments/environment';
 interface HealthResponse {
   status: string;
   message: string;
+  database: string;
 }
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatToolbarModule, MatButtonModule],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
