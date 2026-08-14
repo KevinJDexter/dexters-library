@@ -1,0 +1,36 @@
+<h2>{{ editing() ? 'Edit game' : 'Add a game' }}</h2>
+
+<!-- Placeholder for the future metadata lookup (IGDB/RAWG/etc.). Disabled on
+     purpose: the layout reserves the space so wiring it up later doesn't
+     reshuffle the page. -->
+<mat-form-field appearance="outline" class="full-width">
+  <mat-label>Search a games database</mat-label>
+  <input matInput disabled placeholder="Coming later — auto-fill title, cover art, and more" />
+  <mat-icon matSuffix>travel_explore</mat-icon>
+</mat-form-field>
+
+<form (ngSubmit)="save()" #form="ngForm">
+  <mat-form-field appearance="outline" class="full-width">
+    <mat-label>Title</mat-label>
+    <input matInput name="title" [(ngModel)]="draft.title" required />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="full-width">
+    <mat-label>Platform</mat-label>
+    <input matInput name="platform" [(ngModel)]="draft.platform" required />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="full-width">
+    <mat-label>Status</mat-label>
+    <mat-select name="status" [(ngModel)]="draft.status" required>
+      @for (status of statuses; track status) {
+        <mat-option [value]="status">{{ status }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <div class="actions">
+    <a mat-button routerLink="/video-games">Cancel</a>
+    <button mat-flat-button type="submit" [disabled]="form.invalid">Save</button>
+  </div>
+</form>

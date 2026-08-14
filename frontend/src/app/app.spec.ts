@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { App } from './app';
 import { environment } from '../environments/environment';
 
@@ -11,7 +12,9 @@ describe('App', () => {
       // The component now makes an HTTP call on creation. `provideHttpClientTesting`
       // swaps the real network layer for a fake one, so tests never hit the API —
       // they'd be slow, and they'd fail whenever the backend isn't running.
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      // The toolbar's routerLinks likewise need a router; an empty route table
+      // is enough for the links to construct.
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
   });
 
@@ -29,10 +32,10 @@ describe('App', () => {
     const httpMock = TestBed.inject(HttpTestingController);
     httpMock
       .expectOne(`${environment.apiUrl}/api/health`)
-      .flush({ status: 'ok', message: 'ok' });
+      .flush({ status: 'ok', message: 'ok', database: 'ok' });
 
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain("Dexter's Library");
+    expect(compiled.querySelector('.brand')?.textContent).toContain("Dexter's Library");
   });
 });

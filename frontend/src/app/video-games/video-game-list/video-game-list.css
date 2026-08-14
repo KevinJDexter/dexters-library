@@ -1,0 +1,39 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.search {
+  flex: 2 1 200px;
+}
+
+.platform {
+  flex: 1 1 140px;
+}
+
+.status-chips {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  /* auto-fill + minmax is the whole responsive story: 1 column on a narrow
+     phone, more as the viewport allows, no media queries needed. */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.empty {
+  color: var(--mat-sys-on-surface-variant);
+  text-align: center;
+  padding: 48px 0;
+}
+
+.add-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+}
