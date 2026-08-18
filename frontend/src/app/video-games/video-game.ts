@@ -15,6 +15,7 @@ export interface VideoGame {
   title: string;
   platform: string;
   status: VideoGameStatus;
-  // null until we wire up a metadata API that can supply cover art.
+  created_at: string;
+  // TODO: may add in logic for this later, may omit entirely. Decision to come later.
   coverUrl: string | null;
 }

@@ -30,12 +30,27 @@
   (change)="statusFilter.set($event.value ?? 'all')"
 >
   <mat-chip-option value="all">All</mat-chip-option>
+  <mat-chip-option value="notPlayed">Not Played</mat-chip-option>
+  <mat-chip-option value="beaten">Beaten</mat-chip-option>
+  <mat-chip-option value="completed">Completed</mat-chip-option>
   <mat-chip-option value="playing">Playing</mat-chip-option>
-  <mat-chip-option value="backlog">Backlog</mat-chip-option>
-  <mat-chip-option value="finished">Finished</mat-chip-option>
+  <mat-chip-option value="onHold">On Hold</mat-chip-option>
+  <mat-chip-option value="dropped">Dropped</mat-chip-option>
 </mat-chip-listbox>
 
-@if (filtered().length > 0) {
+@if (store.isLoading()) {
+  <!-- Also covers Render's free-tier cold start (30-60s). A slow wake-up must
+       read as loading, never as an error or an empty library (DL-9). -->
+  <div class="loading" role="status">
+    <span class="loading-dot"></span>
+    <p>Waking up the library… first load can take a minute.</p>
+  </div>
+} @else if (store.error()) {
+  <div class="load-error" role="alert">
+    <p>Couldn't load your games.</p>
+    <button mat-stroked-button (click)="store.refresh()">Try again</button>
+  </div>
+} @else if (filtered().length > 0) {
   <div class="grid">
     @for (game of filtered(); track game.id) {
       <app-video-game-card [game]="game" />

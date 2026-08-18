@@ -41,10 +41,10 @@ export class VideoGameForm implements OnInit {
 
   // Template-driven form state. Plain properties (not signals) are fine here:
   // ngModel drives the inputs and nothing else derives from these values.
-  protected draft: Omit<VideoGame, 'id'> = {
+  protected draft: Omit<VideoGame, 'id' | 'created_at'> = {
     title: '',
     platform: '',
-    status: 'backlog',
+    status: 'notPlayed',
     coverUrl: null,
   };
 
@@ -57,14 +57,15 @@ export class VideoGameForm implements OnInit {
     }
   }
 
-  protected readonly statuses: VideoGameStatus[] = ['playing', 'backlog', 'finished'];
+  protected readonly statuses: VideoGameStatus[] = ['notPlayed', 'playing', 'beaten', 'onHold', 'completed', 'dropped'];
 
   protected save(): void {
     const existing = this.editing();
     if (existing) {
-      this.store.update(existing.id, this.draft);
+      this.store.update(existing.id, {...this.draft, created_at: existing.created_at});
     } else {
-      this.store.add(this.draft);
+      const created_at = new Date().toISOString();
+      this.store.add({...this.draft, created_at});
     }
     this.router.navigate(['/video-games']);
   }
