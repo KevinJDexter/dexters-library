@@ -18,16 +18,18 @@ from models import VideoGame
 # Just data — a list of unsaved model instances. Nothing touches the
 # database until seed() adds them to a session and commits.
 SEED_GAMES = [
-    VideoGame(title="The Legend of Zelda: Tears of the Kingdom", platform="Switch", status="completed"),
-    VideoGame(title="Baldur's Gate 3", platform="PC", status="playing"),
-    VideoGame(title="Elden Ring", platform="PS5", status="playing"),
-    VideoGame(title="Hades", platform="Switch", status="completed"),
-    VideoGame(title="Hollow Knight", platform="PC", status="backlog"),
-    VideoGame(title="Halo Infinite", platform="Xbox", status="abandoned"),
-    VideoGame(title="Stardew Valley", platform="Switch", status="playing"),
-    VideoGame(title="God of War Ragnarök", platform="PS5", status="completed"),
-    VideoGame(title="Celeste", platform="PC", status="backlog"),
-    VideoGame(title="Metroid Prime Remastered", platform="Switch", status="backlog"),
+    # status uses the DL-7 decided vocabulary: Not Played, Playing, Beaten,
+    # On Hold, Completed, Dropped. (Beaten = credits rolled; Completed = 100%.)
+    VideoGame(title="The Legend of Zelda: Tears of the Kingdom", platform="Switch", status="Beaten"),
+    VideoGame(title="Baldur's Gate 3", platform="PC", status="Playing"),
+    VideoGame(title="Elden Ring", platform="PS5", status="Playing"),
+    VideoGame(title="Hades", platform="Switch", status="Completed"),
+    VideoGame(title="Hollow Knight", platform="PC", status="Not Played"),
+    VideoGame(title="Halo Infinite", platform="Xbox", status="Dropped"),
+    VideoGame(title="Stardew Valley", platform="Switch", status="On Hold"),
+    VideoGame(title="God of War Ragnarök", platform="PS5", status="Beaten"),
+    VideoGame(title="Celeste", platform="PC", status="On Hold"),
+    VideoGame(title="Metroid Prime Remastered", platform="Switch", status="Not Played"),
 ]
 
 
