@@ -10,3 +10,5 @@ uvicorn[standard]  # The web server that actually runs FastAPI
 sqlmodel         # ORM — lets us talk to Postgres as Python objects instead of raw SQL
 psycopg[binary]  # PostgreSQL driver. [binary] skips compiling C code on install
 python-dotenv    # Loads backend/.env into the environment for local dev
+pytest           # Test runner — finds test_*.py files and runs their functions
+httpx            # HTTP client; FastAPI's TestClient needs it to make in-process requests

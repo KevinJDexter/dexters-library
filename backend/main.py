@@ -13,15 +13,14 @@ Then open http://127.0.0.1:8000/api/health in a browser.
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, SQLModel, text
+from typing import Annotated
 
-from database import engine
-# Imported for its side effect: defining VideoGame registers the video_game
-# table on SQLModel.metadata, which is what create_all() below reads. Without
-# this import, create_all() would see an empty registry and create nothing.
-import models  # noqa: F401  (tells the linter the "unused" import is deliberate)
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, SQLModel, select, text
+
+from database import engine, get_session
+from models import VideoGame
 
 
 @asynccontextmanager
@@ -88,3 +87,19 @@ def health() -> dict[str, str]:
         "message": message,
         "database": database_status,
     }
+
+
+@app.get("/api/games")
+def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoGame]:
+    """All games in the library, unfiltered and unpaginated (fine at ~10 rows).
+
+    Annotated[Session, Depends(get_session)] is FastAPI's dependency
+    injection: the parameter IS a Session (that's what type checkers see);
+    the Depends metadata tells FastAPI to call get_session() before this
+    function and pass the result in, then close it after the response goes
+    out. The route never manages connection lifecycle itself.
+    """
+    # .all() runs the SELECT and returns a list of VideoGame objects. FastAPI
+    # then serializes them to JSON using the model's fields — the same class
+    # is the table definition AND the response schema (the SQLModel payoff).
+    return session.exec(select(VideoGame)).all()
