@@ -15,9 +15,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, text
+from sqlmodel import Session, SQLModel, text
 
 from database import engine
+# Imported for its side effect: defining VideoGame registers the video_game
+# table on SQLModel.metadata, which is what create_all() below reads. Without
+# this import, create_all() would see an empty registry and create nothing.
+import models  # noqa: F401  (tells the linter the "unused" import is deliberate)
 
 
 @asynccontextmanager
@@ -32,6 +36,11 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"Database connection: FAILED — {exc}")
         raise
+    # Creates every table registered on SQLModel.metadata that doesn't already
+    # exist. Existing tables are left alone — even if the model has changed,
+    # which is why a column change means drop-and-reseed (see backend/CLAUDE.md).
+    SQLModel.metadata.create_all(engine)
+    print("Tables created (if missing).")
     yield
     # Nothing to clean up on shutdown yet.
 
