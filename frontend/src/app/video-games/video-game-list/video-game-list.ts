@@ -28,7 +28,7 @@ import { VideoGames } from '../video-games';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoGameList {
-  private readonly store = inject(VideoGames);
+  protected readonly store = inject(VideoGames);
 
   // Filter state lives in signals so `filtered` below recomputes on its own.
   protected readonly searchTerm = signal('');
@@ -38,7 +38,7 @@ export class VideoGameList {
   // Derived from the data, so a new platform shows up in the dropdown the
   // moment a game with that platform exists.
   protected readonly platforms = computed(() =>
-    [...new Set(this.store.games().map((game) => game.platform))].sort(),
+    [...new Set(this.store.videoGames().map((game) => game.platform))].sort(),
   );
 
   protected readonly filtered = computed(() => {
@@ -46,7 +46,7 @@ export class VideoGameList {
     const status = this.statusFilter();
     const platform = this.platformFilter();
 
-    return this.store.games().filter(
+    return this.store.videoGames().filter(
       (game) =>
         (term === '' || game.title.toLowerCase().includes(term)) &&
         (status === 'all' || game.status === status) &&

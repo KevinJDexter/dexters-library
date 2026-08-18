@@ -1,41 +1,41 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed } from '@angular/core';
+import { httpResource } from '@angular/common/http';
 
 import { VideoGame } from './video-game';
+import { environment } from '../../environments/environment';
 
 /**
- * In-memory store for the library. Holds hardcoded mock data until the backend
- * has a /api/video-games endpoint; components already talk to this service, so the
- * swap to HTTP later shouldn't touch any component code.
+ * In-memory store for the library. Uses httpResource to fetch the list from the backend.
  */
 @Injectable({ providedIn: 'root' })
 export class VideoGames {
-  // The writable signal stays private so only this service can mutate the
-  // list; components get the read-only view below.
-  private readonly state = signal<VideoGame[]>([
-    { id: 1, title: 'Hades', platform: 'Switch', status: 'playing', coverUrl: null },
-    { id: 2, title: 'Outer Wilds', platform: 'PC', status: 'finished', coverUrl: null },
-    { id: 3, title: 'Elden Ring', platform: 'PS5', status: 'backlog', coverUrl: null },
-    { id: 4, title: 'Chrono Trigger', platform: 'SNES', status: 'finished', coverUrl: null },
-    { id: 5, title: 'Baldur’s Gate 3', platform: 'PC', status: 'playing', coverUrl: null },
-    { id: 6, title: 'Metroid Prime', platform: 'VideoGameCube', status: 'backlog', coverUrl: null },
-  ]);
+  private readonly videoGamesResource = httpResource<VideoGame[]>(
+    () => `${environment.apiUrl}/api/games`,
+  );
 
-  readonly games = this.state.asReadonly();
+  readonly videoGames = computed(() => this.videoGamesResource.value() ?? []);
+
+  readonly isLoading = this.videoGamesResource.isLoading;
+  readonly error = this.videoGamesResource.error;
 
   byId(id: number): VideoGame | undefined {
-    return this.games().find((game) => game.id === id);
+    return this.videoGames().find((game) => game.id === id);
   }
 
   add(draft: Omit<VideoGame, 'id'>): void {
-    // Signals require replacing the array, not pushing into it — change
-    // detection keys off the reference, not the contents.
-    const nextId = Math.max(0, ...this.games().map((g) => g.id)) + 1;
-    this.state.update((games) => [...games, { ...draft, id: nextId }]);
+    // TODO: Not working as intended yet, will be handled in DL-10
+    const nextId = Math.max(0, ...this.videoGames().map((g) => g.id)) + 1;
+    this.videoGamesResource.update((games) => [...(games || []), { ...draft, id: nextId }]);
   }
 
   update(id: number, changes: Omit<VideoGame, 'id'>): void {
-    this.state.update((games) =>
-      games.map((game) => (game.id === id ? { ...changes, id } : game)),
+    // TODO: Not working as intended yet, will be handled in DL-13
+    this.videoGamesResource.update((games) =>
+      (games || []).map((game) => (game.id === id ? { ...changes, id } : game))
     );
+  }
+
+  refresh(): void {
+    this.videoGamesResource.reload();
   }
 }
