@@ -1,14 +1,16 @@
-import { Injectable, computed } from '@angular/core';
-import { httpResource } from '@angular/common/http';
+import { Injectable, computed, inject } from '@angular/core';
+import { HttpClient, httpResource } from '@angular/common/http';
 
 import { VideoGame } from './video-game';
 import { environment } from '../../environments/environment';
+import { firstValueFrom } from 'rxjs';
 
 /**
  * In-memory store for the library. Uses httpResource to fetch the list from the backend.
  */
 @Injectable({ providedIn: 'root' })
 export class VideoGames {
+  private readonly http = inject(HttpClient);
   private readonly videoGamesResource = httpResource<VideoGame[]>(
     () => `${environment.apiUrl}/api/games`,
   );
@@ -22,16 +24,20 @@ export class VideoGames {
     return this.videoGames().find((game) => game.id === id);
   }
 
-  add(draft: Omit<VideoGame, 'id'>): void {
-    // TODO: Not working as intended yet, will be handled in DL-10
-    const nextId = Math.max(0, ...this.videoGames().map((g) => g.id)) + 1;
-    this.videoGamesResource.update((games) => [...(games || []), { ...draft, id: nextId }]);
+  async add(draft: Omit<VideoGame, 'id' | 'created_at'>): Promise<VideoGame> {
+    const created = await firstValueFrom(
+      this.http.post<VideoGame>(`${environment.apiUrl}/api/games`, draft, {
+        headers: { 'X-Write-Secret': environment.writeSecret },
+      })
+    );
+    this.videoGamesResource.update((games) => [...(games || []), created]);
+    return created;
   }
 
-  update(id: number, changes: Omit<VideoGame, 'id'>): void {
+  update(id: number, changes: Omit<VideoGame, 'id' | 'created_at'>): void {
     // TODO: Not working as intended yet, will be handled in DL-13
     this.videoGamesResource.update((games) =>
-      (games || []).map((game) => (game.id === id ? { ...changes, id } : game))
+      (games || []).map((game) => (game.id === id ? { ...game, ...changes } : game))
     );
   }
 

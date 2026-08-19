@@ -14,3 +14,9 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+.error {
+  color: var(--mat-sys-error);
+  font-size: 0.875rem;
+  margin-top: 8px;
+}

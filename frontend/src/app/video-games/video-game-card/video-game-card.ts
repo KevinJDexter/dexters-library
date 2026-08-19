@@ -5,7 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 
-import { VideoGame } from '../video-game';
+import { STATUS_LABELS, VideoGame } from '../video-game';
 
 @Component({
   selector: 'app-video-game-card',
@@ -18,4 +18,5 @@ export class VideoGameCard {
   // input.required is the signal-based replacement for @Input(); the app
   // won't compile if a parent renders this card without passing a game.
   readonly game = input.required<VideoGame>();
+  readonly statusLabels = STATUS_LABELS;
 }

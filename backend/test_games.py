@@ -31,3 +31,46 @@ def test_list_games_returns_seeded_rows(client: TestClient, session: Session) ->
     assert first["platform"] == "PC"
     assert first["status"] == "beaten"
     assert isinstance(first["id"], int)
+
+
+def test_create_game_persists(client: TestClient, write_headers: dict) -> None:
+    response = client.post(
+        "/api/games",
+        json={"title": "Final Fantasy VI", "platform": "SNES", "status": "beaten"},
+        headers=write_headers,
+    )
+
+    assert response.status_code == 201
+    created = response.json()
+    assert created["title"] == "Final Fantasy VI"
+    assert isinstance(created["id"], int)
+
+    # Persistence check: a fresh GET must include the new row — proving it
+    # reached the database, not just the response.
+    games = client.get("/api/games").json()
+    assert any(g["id"] == created["id"] for g in games)
+
+
+def test_create_game_rejects_blank_title(client: TestClient, write_headers: dict) -> None:
+    response = client.post(
+        "/api/games",
+        # Whitespace-only: the strip-then-validate order in VideoGameCreate
+        # is exactly what this exercises.
+        json={"title": "   ", "platform": "SNES", "status": "beaten"},
+        headers=write_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_game_without_secret_is_401(client: TestClient) -> None:
+    # A perfectly valid body — the ONLY thing wrong is the missing header,
+    # so a 401 here can't be blamed on validation.
+    response = client.post(
+        "/api/games",
+        json={"title": "Final Fantasy VI", "platform": "SNES", "status": "beaten"},
+    )
+
+    assert response.status_code == 401
+    # And nothing must have been written.
+    assert client.get("/api/games").json() == []
