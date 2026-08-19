@@ -8,6 +8,14 @@ tables around each test, so the dev database is never touched.
 
 import os
 
+# Must happen BEFORE `from main import app` below: importing main pulls in
+# security.py, which reads WRITE_SECRET exactly once at import time. Setting
+# a known value first means tests never depend on the real secret in .env
+# (setdefault also loses to a real env var, but load_dotenv never overrides
+# already-set variables, so this value wins over .env).
+TEST_WRITE_SECRET = "test-write-secret"
+os.environ.setdefault("WRITE_SECRET", TEST_WRITE_SECRET)
+
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
@@ -65,3 +73,11 @@ def client(session: Session):
     # real dev engine. Bare, it skips startup and only exercises routes.
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def write_headers() -> dict:
+    """The header a legitimate write request carries. os.environ (not the
+    constant) so it stays correct even when WRITE_SECRET was already set
+    in the shell and setdefault above didn't win."""
+    return {"X-Write-Secret": os.environ["WRITE_SECRET"]}
