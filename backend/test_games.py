@@ -6,7 +6,7 @@ every function in it named test_* — no registration, just naming.
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from models import VideoGame
+from video_games.models import VideoGame
 
 
 def test_list_games_returns_seeded_rows(client: TestClient, session: Session) -> None:
