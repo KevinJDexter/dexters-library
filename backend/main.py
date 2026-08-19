@@ -21,6 +21,7 @@ from sqlmodel import Session, SQLModel, select, text
 
 from database import engine, get_session
 from models import VideoGame, VideoGameCreate
+from security import require_write_secret
 
 
 @asynccontextmanager
@@ -105,7 +106,9 @@ def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoG
     return session.exec(select(VideoGame)).all()
 
 
-@app.post("/api/games", status_code=201)
+# dependencies=[...] (vs a parameter) runs the guard without handing its
+# return value to the route — we only care about the 401 it can raise.
+@app.post("/api/games", status_code=201, dependencies=[Depends(require_write_secret)])
 def create_game(
     data: VideoGameCreate,
     session: Annotated[Session, Depends(get_session)],
