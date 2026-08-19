@@ -24,7 +24,7 @@
     <mat-label>Status</mat-label>
     <mat-select name="status" [(ngModel)]="draft.status" required>
       @for (status of statuses; track status) {
-        <mat-option [value]="status">{{ status }}</mat-option>
+        <mat-option [value]="status">{{ statusLabels[status] }}</mat-option>
       }
     </mat-select>
   </mat-form-field>
@@ -33,4 +33,10 @@
     <a mat-button routerLink="/video-games">Cancel</a>
     <button mat-flat-button type="submit" [disabled]="form.invalid">Save</button>
   </div>
+
+  @if (saveError()) {
+    <div>
+      <p class="error">Failed to save the video game. Please try again.</p>
+    </div>
+  } 
 </form>

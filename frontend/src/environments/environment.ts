@@ -9,7 +9,17 @@
  * This URL is baked into the compiled JavaScript at build time, so it's public.
  * That's fine — it's an address, not a secret. Never put keys or passwords here.
  */
+
+/**
+ * WRITE_SECRET is not defined anywhere in this codebase — it's injected at
+ * build time on Render via:  ng build --define WRITE_SECRET="'$WRITE_SECRET'"
+ * `declare const` tells TypeScript "trust me, this global exists"; esbuild
+ * replaces every use of it with the literal string during the build.
+ */
+declare const WRITE_SECRET: string;
+
 export const environment = {
   production: true,
   apiUrl: 'https://dexters-library-api.onrender.com',
+  writeSecret: WRITE_SECRET,
 };

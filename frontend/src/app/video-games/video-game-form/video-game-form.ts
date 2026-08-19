@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 
-import { VideoGame, VideoGameStatus } from '../video-game';
+import { VideoGame, VideoGameStatus, STATUS_LABELS } from '../video-game';
 import { VideoGames } from '../video-games';
 
 @Component({
@@ -28,6 +28,9 @@ import { VideoGames } from '../video-games';
 export class VideoGameForm implements OnInit {
   private readonly store = inject(VideoGames);
   private readonly router = inject(Router);
+  protected readonly saveError = signal(false);
+  protected readonly statusLabels = STATUS_LABELS;
+  protected readonly statuses: VideoGameStatus[] = Object.keys(STATUS_LABELS) as VideoGameStatus[];
 
   // Bound from the :id route param by withComponentInputBinding() in
   // app.config.ts. Absent on /video-games/new, so it's optional — and it arrives
@@ -57,15 +60,19 @@ export class VideoGameForm implements OnInit {
     }
   }
 
-  protected readonly statuses: VideoGameStatus[] = ['notPlayed', 'playing', 'beaten', 'onHold', 'completed', 'dropped'];
 
-  protected save(): void {
+  protected async save(): Promise<void> {
+    this.saveError.set(false);
     const existing = this.editing();
     if (existing) {
-      this.store.update(existing.id, {...this.draft, created_at: existing.created_at});
+      this.store.update(existing.id, {...this.draft});
     } else {
-      const created_at = new Date().toISOString();
-      this.store.add({...this.draft, created_at});
+      try {
+        await this.store.add({...this.draft});
+      } catch {
+        this.saveError.set(true);
+        return;
+      }
     }
     this.router.navigate(['/video-games']);
   }

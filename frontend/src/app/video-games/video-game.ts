@@ -10,6 +10,15 @@ export type VideoGameStatus =
   | 'completed'
   | 'dropped';
 
+export const STATUS_LABELS: Record<VideoGameStatus, string> = {
+  notPlayed: 'Not Played',
+  playing: 'Playing',
+  beaten: 'Beaten',
+  onHold: 'On Hold',
+  completed: 'Completed',
+  dropped: 'Dropped',
+};
+
 export interface VideoGame {
   id: number;
   title: string;
