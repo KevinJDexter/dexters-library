@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, SQLModel, select, text
 
 from database import engine, get_session
-from models import VideoGame
+from models import VideoGame, VideoGameCreate
 
 
 @asynccontextmanager
@@ -103,3 +103,28 @@ def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoG
     # then serializes them to JSON using the model's fields — the same class
     # is the table definition AND the response schema (the SQLModel payoff).
     return session.exec(select(VideoGame)).all()
+
+
+@app.post("/api/games", status_code=201)
+def create_game(
+    data: VideoGameCreate,
+    session: Annotated[Session, Depends(get_session)],
+) -> VideoGame:
+    """Add one game. 201 (Created) instead of the default 200.
+
+    Because `data` is typed as a Pydantic model (not a dependency), FastAPI
+    treats it as the JSON request body: parse it, validate it, 422 on
+    failure — all before this function is called. By the time we're here,
+    `data` is guaranteed clean.
+    """
+    # Copy the validated fields onto a fresh table-model instance. id and
+    # created_at aren't on VideoGameCreate, so they fall back to their
+    # defaults (None -> Postgres assigns; default_factory stamps the time).
+    game = VideoGame.model_validate(data)
+
+    session.add(game)
+    session.commit()
+    # commit() expires the in-memory object; refresh() re-reads the row so
+    # the response includes the database-assigned id.
+    session.refresh(game)
+    return game
