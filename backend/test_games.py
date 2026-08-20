@@ -74,3 +74,80 @@ def test_create_game_without_secret_is_401(client: TestClient) -> None:
     assert response.status_code == 401
     # And nothing must have been written.
     assert client.get("/api/games").json() == []
+
+
+def test_update_game_changes_only_sent_fields(
+    client: TestClient, session: Session, write_headers: dict
+) -> None:
+    game = VideoGame(title="Hollow Knight", platform="PC", status="notPlayed")
+    session.add(game)
+    session.commit()
+    session.refresh(game)
+
+    response = client.patch(
+        f"/api/games/{game.id}",
+        json={"status": "beaten"},
+        headers=write_headers,
+    )
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["status"] == "beaten"
+    # The whole point of PATCH: unsent fields survive untouched.
+    assert updated["title"] == "Hollow Knight"
+    assert updated["platform"] == "PC"
+
+
+def test_update_missing_game_is_404(client: TestClient, write_headers: dict) -> None:
+    response = client.patch(
+        "/api/games/999999", json={"status": "beaten"}, headers=write_headers
+    )
+
+    assert response.status_code == 404
+
+
+def test_update_without_secret_is_401(client: TestClient, session: Session) -> None:
+    game = VideoGame(title="Hollow Knight", platform="PC", status="notPlayed")
+    session.add(game)
+    session.commit()
+    session.refresh(game)
+
+    response = client.patch(f"/api/games/{game.id}", json={"status": "beaten"})
+
+    assert response.status_code == 401
+    # The row must be untouched, not just the response rejected.
+    session.refresh(game)
+    assert game.status == "notPlayed"
+
+
+def test_delete_game_removes_it(
+    client: TestClient, session: Session, write_headers: dict
+) -> None:
+    game = VideoGame(title="Hollow Knight", platform="PC", status="notPlayed")
+    session.add(game)
+    session.commit()
+    session.refresh(game)
+
+    response = client.delete(f"/api/games/{game.id}", headers=write_headers)
+
+    assert response.status_code == 204
+    assert client.get("/api/games").json() == []
+
+
+def test_delete_missing_game_is_404(client: TestClient, write_headers: dict) -> None:
+    response = client.delete("/api/games/999999", headers=write_headers)
+
+    assert response.status_code == 404
+
+
+def test_delete_without_secret_is_401(client: TestClient, session: Session) -> None:
+    game = VideoGame(title="Hollow Knight", platform="PC", status="notPlayed")
+    session.add(game)
+    session.commit()
+    session.refresh(game)
+
+    response = client.delete(f"/api/games/{game.id}")
+
+    assert response.status_code == 401
+    # Still there.
+    assert len(client.get("/api/games").json()) == 1
