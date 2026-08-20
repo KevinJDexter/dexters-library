@@ -55,6 +55,19 @@ export class VideoGames {
     this.videoGamesResource.update((games) => (games || []).filter((game) => game.id !== id));
   };
 
+  async importCsv(file: File): Promise<number> {
+    const form = new FormData();
+    form.append('file', file);
+
+    const result = await firstValueFrom(
+      this.http.post<{ imported: number }>(`${environment.apiUrl}/api/games/import`, form, {
+        headers: { 'X-Write-Secret': environment.writeSecret },
+      })
+    );
+    this.refresh();
+    return result.imported;
+  }
+
   refresh(): void {
     this.videoGamesResource.reload();
   }

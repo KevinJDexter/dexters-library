@@ -6,9 +6,13 @@ mounted onto it later — main.py calls include_router(). Same decorators as
 before, just on `router` instead of `app`.
 """
 
+import csv
+import io
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from database import get_session
@@ -16,6 +20,11 @@ from security import require_write_secret
 from video_games.models import VideoGame, VideoGameCreate, VideoGameUpdate
 
 router = APIRouter()
+
+# The CSV column order for both export and import. One tuple drives the
+# export header, the export rows, and the import's required-column check, so
+# the two halves can't drift apart.
+CSV_COLUMNS = ("title", "platform", "status")
 
 
 @router.get("/api/games")
@@ -59,6 +68,117 @@ def create_game(
     # the response includes the database-assigned id.
     session.refresh(game)
     return game
+
+
+# NOTE: this must stay ABOVE any "/api/games/{game_id}" GET route. FastAPI
+# matches in registration order, so a later {game_id} route defined first
+# would swallow "export" and fail trying to read it as an int.
+#
+# Unguarded, unlike the write endpoints: GET /api/games already serves the
+# same data to anyone, so requiring a secret here would protect nothing while
+# forcing the frontend to fetch-and-blob instead of using a plain link.
+@router.get("/api/games/export")
+def export_games(session: Annotated[Session, Depends(get_session)]) -> StreamingResponse:
+    """The whole library as a CSV download.
+
+    Deliberately exports only the columns import accepts, so a file that
+    comes out of here can go straight back in. id and created_at are left
+    out because they're server-assigned — see the ticket's note that CSV is
+    not the backup (that's pg_dump).
+    """
+    games = session.exec(select(VideoGame).order_by(VideoGame.title)).all()
+
+    # StringIO is an in-memory text file: same read/write API as a real file,
+    # no disk involved. The csv module wants something file-like to write to.
+    buffer = io.StringIO()
+    # DictWriter maps dict keys to columns, so row order can never drift from
+    # header order — safer than writing bare lists.
+    writer = csv.DictWriter(buffer, fieldnames=CSV_COLUMNS)
+    writer.writeheader()
+    for game in games:
+        writer.writerow({column: getattr(game, column) for column in CSV_COLUMNS})
+
+    # Rewind to the start, or the response streams from the end and sends
+    # nothing — the classic in-memory-file mistake.
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="text/csv",
+        # Content-Disposition: attachment is what makes a browser download
+        # the response instead of displaying it, and names the saved file.
+        headers={"Content-Disposition": 'attachment; filename="dexters-library.csv"'},
+    )
+
+
+@router.post("/api/games/import", dependencies=[Depends(require_write_secret)])
+async def import_games(
+    file: Annotated[UploadFile, File()],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int]:
+    """Bulk-insert games from an uploaded CSV.
+
+    All-or-nothing: if ANY row is invalid, nothing is inserted and every
+    problem is reported at once. Partial inserts would be a trap here —
+    there's no duplicate detection, so fixing the file and re-uploading
+    would insert the good rows a second time.
+
+    `async def` (unlike our other endpoints) because UploadFile.read() is
+    awaitable — FastAPI streams uploads rather than blocking on them.
+    """
+    raw = await file.read()
+    try:
+        # utf-8-sig strips the byte-order mark Excel writes at the start of
+        # its CSVs. Without it the first header becomes "﻿title" and
+        # the column check below fails for a completely invisible reason.
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=422, detail="File must be UTF-8 text.")
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    missing = [c for c in CSV_COLUMNS if c not in (reader.fieldnames or [])]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Missing required column(s): {', '.join(missing)}",
+        )
+
+    games: list[VideoGame] = []
+    errors: list[dict[str, object]] = []
+
+    # start=2 because row 1 is the header, so these numbers match what the
+    # user sees in a spreadsheet.
+    for line_number, row in enumerate(reader, start=2):
+        try:
+            # Reusing VideoGameCreate means CSV rows get exactly the same
+            # validation as POSTed JSON — blank titles, length caps, and
+            # whitespace stripping all come along for free.
+            data = VideoGameCreate(**{c: (row.get(c) or "") for c in CSV_COLUMNS})
+        except ValidationError as exc:
+            # .errors() is a list of structured dicts, one per failed field,
+            # rather than one blob of text — which is what makes row-level
+            # reporting possible.
+            for error in exc.errors():
+                errors.append(
+                    {
+                        "row": line_number,
+                        "field": error["loc"][0] if error["loc"] else "?",
+                        "message": error["msg"],
+                    }
+                )
+            continue
+        games.append(VideoGame.model_validate(data))
+
+    if errors:
+        raise HTTPException(status_code=422, detail={"errors": errors})
+
+    if not games:
+        raise HTTPException(status_code=422, detail="No data rows found.")
+
+    session.add_all(games)
+    session.commit()
+    return {"imported": len(games)}
 
 
 @router.patch(
