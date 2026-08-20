@@ -32,6 +32,12 @@ mat-card-actions {
   background: var(--mat-sys-primary-container);
 }
 
-.status-finished {
+.status-beaten {
   background: var(--mat-sys-tertiary-container);
+}
+
+.delete-error {
+  color: var(--mat-sys-error);
+  font-size: 0.875rem;
+  margin: 0 16px 12px;
 }

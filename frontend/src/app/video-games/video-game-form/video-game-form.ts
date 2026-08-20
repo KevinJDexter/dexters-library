@@ -65,7 +65,12 @@ export class VideoGameForm implements OnInit {
     this.saveError.set(false);
     const existing = this.editing();
     if (existing) {
-      this.store.update(existing.id, {...this.draft});
+      try {
+        await this.store.update(existing.id, {...this.draft});
+      } catch {
+        this.saveError.set(true);
+        return;
+      }
     } else {
       try {
         await this.store.add({...this.draft});

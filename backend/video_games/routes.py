@@ -8,12 +8,12 @@ before, just on `router` instead of `app`.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from database import get_session
 from security import require_write_secret
-from video_games.models import VideoGame, VideoGameCreate
+from video_games.models import VideoGame, VideoGameCreate, VideoGameUpdate
 
 router = APIRouter()
 
@@ -59,3 +59,58 @@ def create_game(
     # the response includes the database-assigned id.
     session.refresh(game)
     return game
+
+
+@router.patch(
+    "/api/games/{game_id}", dependencies=[Depends(require_write_secret)]
+)
+def update_game(
+    game_id: int,
+    data: VideoGameUpdate,
+    session: Annotated[Session, Depends(get_session)],
+) -> VideoGame:
+    """Partially update a game. PATCH, not PUT: send only what changes.
+
+    `game_id` is declared in the path ("/api/games/{game_id}") and as a
+    parameter, so FastAPI pulls it from the URL and converts it to int —
+    a non-numeric id 422s before this runs.
+    """
+    # session.get() looks a row up by primary key, returning None when it
+    # doesn't exist. Raising HTTPException is how a route reports a failure:
+    # FastAPI turns it into a real HTTP response instead of a 500.
+    game = session.get(VideoGame, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    # exclude_unset is the heart of PATCH. It returns ONLY the fields the
+    # client actually sent — so an omitted field is left alone, which is
+    # different from a field explicitly sent as null. Without it, every
+    # unsent field would come back as None and wipe the stored value.
+    changes = data.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        # setattr(obj, "title", x) is obj.title = x with the name as a
+        # variable — the standard way to assign a field you only know by name.
+        setattr(game, field, value)
+
+    session.add(game)
+    session.commit()
+    session.refresh(game)
+    return game
+
+
+@router.delete(
+    "/api/games/{game_id}",
+    status_code=204,
+    dependencies=[Depends(require_write_secret)],
+)
+def delete_game(
+    game_id: int,
+    session: Annotated[Session, Depends(get_session)],
+) -> None:
+    """Remove a game. 204 No Content: success, and deliberately no body."""
+    game = session.get(VideoGame, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    session.delete(game)
+    session.commit()
