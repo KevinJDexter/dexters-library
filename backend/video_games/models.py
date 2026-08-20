@@ -68,3 +68,24 @@ class VideoGameCreate(SQLModel):
         if isinstance(value, str):
             return value.strip()
         return value
+
+
+class VideoGameUpdate(SQLModel):
+    """What a client sends to edit a game (PATCH). Every field is optional:
+    sending only {"status": "beaten"} is a valid request.
+
+    Same constraints as VideoGameCreate, so a field that IS sent still can't
+    be blank or absurdly long. The difference is only which fields are
+    required — none of them.
+    """
+
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    platform: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    status: Optional[str] = Field(default=None, min_length=1, max_length=30)
+
+    @field_validator("title", "platform", "status", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
