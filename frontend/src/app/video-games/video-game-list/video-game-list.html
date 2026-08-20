@@ -1,3 +1,27 @@
+<!--
+  DL-11 placeholders — deliberately inert until the store methods exist.
+  Remove `disabled` when wiring each one up.
+
+  These sit above the filters because they act on the whole library, not on
+  what's currently shown. They live on this page rather than the app toolbar
+  because import/export is per-collection: board games will want their own.
+-->
+<div class="library-actions">
+  <!-- Becomes a <button> that clicks a hidden <input type="file">, since a
+       raw file input can't be styled as a Material button. -->
+  <button mat-stroked-button type="button" disabled>
+    <mat-icon>upload</mat-icon>
+    Import CSV
+  </button>
+
+  <!-- Becomes an <a [href]="exportUrl" download> — export is unguarded, so a
+       plain link is enough; no fetch or blob needed. -->
+  <button mat-stroked-button type="button" disabled>
+    <mat-icon>download</mat-icon>
+    Export CSV
+  </button>
+</div>
+
 <div class="toolbar">
   <mat-form-field appearance="outline" class="search" subscriptSizing="dynamic">
     <mat-label>Search titles</mat-label>
