@@ -13,7 +13,7 @@ then run the app or this script again.
 from sqlmodel import Session, SQLModel, select
 
 from database import engine
-from models import VideoGame
+from video_games.models import VideoGame
 
 # Just data — a list of unsaved model instances. Nothing touches the
 # database until seed() adds them to a session and commits.

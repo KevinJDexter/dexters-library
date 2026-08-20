@@ -1,8 +1,9 @@
 """
 Dexter's Library — API entry point.
 
-This is the whole backend right now: one endpoint that says hello.
-The point is to prove the plumbing works end to end before we build features.
+Assembly only: this file wires the app together (middleware, startup,
+routers) and defines nothing itself. Endpoints live in health.py and in
+each feature package's routes.py.
 
 Run it locally with:
     uvicorn main:app --reload
@@ -13,15 +14,13 @@ Then open http://127.0.0.1:8000/api/health in a browser.
 import os
 from contextlib import asynccontextmanager
 
-from typing import Annotated
-
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, SQLModel, select, text
+from sqlmodel import Session, SQLModel, text
 
-from database import engine, get_session
-from models import VideoGame, VideoGameCreate
-from security import require_write_secret
+import health
+from database import engine
+from video_games import routes as video_game_routes
 
 
 @asynccontextmanager
@@ -39,6 +38,11 @@ async def lifespan(app: FastAPI):
     # Creates every table registered on SQLModel.metadata that doesn't already
     # exist. Existing tables are left alone — even if the model has changed,
     # which is why a column change means drop-and-reseed (see backend/CLAUDE.md).
+    #
+    # Only tables whose models have been imported are registered. The router
+    # imports below pull in each package's models, which is what puts them on
+    # the metadata — a new feature package with no imported models would be
+    # silently skipped here.
     SQLModel.metadata.create_all(engine)
     print("Tables created (if missing).")
     yield
@@ -70,64 +74,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    """Confirms the API is alive and can reach the database."""
-    try:
-        with Session(engine) as session:
-            session.exec(text("SELECT 1"))
-        database_status = "ok"
-        message = "Hello from Python and Postgres"
-    except Exception:
-        database_status = "unreachable"
-        message = "Hello from Python"
-
-    return {
-        "status": "ok",
-        "message": message,
-        "database": database_status,
-    }
-
-
-@app.get("/api/games")
-def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoGame]:
-    """All games in the library, unfiltered and unpaginated (fine at ~10 rows).
-
-    Annotated[Session, Depends(get_session)] is FastAPI's dependency
-    injection: the parameter IS a Session (that's what type checkers see);
-    the Depends metadata tells FastAPI to call get_session() before this
-    function and pass the result in, then close it after the response goes
-    out. The route never manages connection lifecycle itself.
-    """
-    # .all() runs the SELECT and returns a list of VideoGame objects. FastAPI
-    # then serializes them to JSON using the model's fields — the same class
-    # is the table definition AND the response schema (the SQLModel payoff).
-    return session.exec(select(VideoGame)).all()
-
-
-# dependencies=[...] (vs a parameter) runs the guard without handing its
-# return value to the route — we only care about the 401 it can raise.
-@app.post("/api/games", status_code=201, dependencies=[Depends(require_write_secret)])
-def create_game(
-    data: VideoGameCreate,
-    session: Annotated[Session, Depends(get_session)],
-) -> VideoGame:
-    """Add one game. 201 (Created) instead of the default 200.
-
-    Because `data` is typed as a Pydantic model (not a dependency), FastAPI
-    treats it as the JSON request body: parse it, validate it, 422 on
-    failure — all before this function is called. By the time we're here,
-    `data` is guaranteed clean.
-    """
-    # Copy the validated fields onto a fresh table-model instance. id and
-    # created_at aren't on VideoGameCreate, so they fall back to their
-    # defaults (None -> Postgres assigns; default_factory stamps the time).
-    game = VideoGame.model_validate(data)
-
-    session.add(game)
-    session.commit()
-    # commit() expires the in-memory object; refresh() re-reads the row so
-    # the response includes the database-assigned id.
-    session.refresh(game)
-    return game
+# Mount each router's endpoints onto the app. Paths are defined in full on the
+# routes themselves ("/api/games"), so no prefix is needed here.
+app.include_router(health.router)
+app.include_router(video_game_routes.router)
