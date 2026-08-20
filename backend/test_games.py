@@ -156,13 +156,12 @@ def test_delete_without_secret_is_401(client: TestClient, session: Session) -> N
 # --- CSV export -----------------------------------------------------------
 
 
-def test_export_returns_csv(
-    client: TestClient, session: Session, write_headers: dict
-) -> None:
+def test_export_returns_csv(client: TestClient, session: Session) -> None:
     session.add(VideoGame(title="Celeste", platform="PC", status="completed"))
     session.commit()
 
-    response = client.get("/api/games/export", headers=write_headers)
+    # No headers: export is deliberately unguarded, same as GET /api/games.
+    response = client.get("/api/games/export")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
@@ -171,10 +170,6 @@ def test_export_returns_csv(
     lines = response.text.strip().splitlines()
     assert lines[0] == "title,platform,status"
     assert lines[1] == "Celeste,PC,completed"
-
-
-def test_export_without_secret_is_401(client: TestClient) -> None:
-    assert client.get("/api/games/export").status_code == 401
 
 
 # --- CSV import -----------------------------------------------------------
@@ -265,7 +260,7 @@ def test_export_output_can_be_reimported(
     session.add(VideoGame(title="Hades", platform="Switch", status="completed"))
     session.commit()
 
-    exported = client.get("/api/games/export", headers=write_headers).text
+    exported = client.get("/api/games/export").text
 
     response = client.post(
         "/api/games/import", files=_csv_upload(exported), headers=write_headers

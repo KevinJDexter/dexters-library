@@ -73,7 +73,11 @@ def create_game(
 # NOTE: this must stay ABOVE any "/api/games/{game_id}" GET route. FastAPI
 # matches in registration order, so a later {game_id} route defined first
 # would swallow "export" and fail trying to read it as an int.
-@router.get("/api/games/export", dependencies=[Depends(require_write_secret)])
+#
+# Unguarded, unlike the write endpoints: GET /api/games already serves the
+# same data to anyone, so requiring a secret here would protect nothing while
+# forcing the frontend to fetch-and-blob instead of using a plain link.
+@router.get("/api/games/export")
 def export_games(session: Annotated[Session, Depends(get_session)]) -> StreamingResponse:
     """The whole library as a CSV download.
 
