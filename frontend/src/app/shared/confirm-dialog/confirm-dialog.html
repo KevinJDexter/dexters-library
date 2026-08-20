@@ -1,0 +1,33 @@
+<!--
+  The mat-dialog-* directives handle layout, scrolling and the accessible
+  wiring (mat-dialog-title becomes the dialog's aria-labelledby target).
+-->
+<h2 mat-dialog-title>{{ data.title }}</h2>
+
+<mat-dialog-content>
+  <p>{{ data.message }}</p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <!--
+    [mat-dialog-close]="value" closes the dialog and makes `value` what
+    afterClosed() emits. No click handler and no component code needed —
+    the directive is the whole mechanism.
+
+    cdkFocusInitial is on Cancel, not Confirm, on purpose: the dialog traps
+    focus when it opens, so whichever button holds it is what Enter fires.
+    For a destructive action the safe default must be the one that does
+    nothing.
+  -->
+  <button mat-button [mat-dialog-close]="false" cdkFocusInitial>
+    {{ data.cancelText ?? 'Cancel' }}
+  </button>
+
+  <button
+    mat-flat-button
+    [class.destructive]="data.destructive"
+    [mat-dialog-close]="true"
+  >
+    {{ data.confirmText ?? 'Confirm' }}
+  </button>
+</mat-dialog-actions>

@@ -1,0 +1,6 @@
+/* Material's error tokens, so a destructive confirm reads as dangerous in
+   both light and dark themes without hardcoding a red. */
+.destructive {
+  background: var(--mat-sys-error);
+  color: var(--mat-sys-on-error);
+}

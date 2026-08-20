@@ -34,12 +34,26 @@ export class VideoGames {
     return created;
   }
 
-  update(id: number, changes: Omit<VideoGame, 'id' | 'created_at'>): void {
-    // TODO: Not working as intended yet, will be handled in DL-13
-    this.videoGamesResource.update((games) =>
-      (games || []).map((game) => (game.id === id ? { ...game, ...changes } : game))
+  async update(id: number, changes: Omit<VideoGame, 'id' | 'created_at'>): Promise<VideoGame> {
+    const updated = await firstValueFrom(
+      this.http.patch<VideoGame>(`${environment.apiUrl}/api/games/${id}`, changes, {
+        headers: { 'X-Write-Secret': environment.writeSecret },
+      })
     );
+    this.videoGamesResource.update((games) =>
+      (games || []).map((game) => (game.id === id ? updated : game))
+    );
+    return updated;
   }
+
+  async delete(id: number): Promise<void> {
+    await firstValueFrom(
+      this.http.delete<void>(`${environment.apiUrl}/api/games/${id}`, {
+        headers: { 'X-Write-Secret': environment.writeSecret },
+      })
+    );
+    this.videoGamesResource.update((games) => (games || []).filter((game) => game.id !== id));
+  };
 
   refresh(): void {
     this.videoGamesResource.reload();

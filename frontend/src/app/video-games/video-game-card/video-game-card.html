@@ -18,8 +18,22 @@
       <mat-chip [class]="'status-' + game().status">{{ statusLabels[game().status] }}</mat-chip>
     </mat-chip-set>
     <span class="spacer"></span>
+    <button
+      mat-icon-button
+      type="button"
+      matTooltip="Delete game"
+      [disabled]="deleting()"
+      (click)="deleteGame()"
+      aria-label="Delete game"
+    >
+      <mat-icon>delete</mat-icon>
+    </button>
     <a mat-icon-button [routerLink]="['/video-games', game().id, 'edit']" aria-label="Edit game">
       <mat-icon>edit</mat-icon>
     </a>
   </mat-card-actions>
+
+  @if (deleteError()) {
+    <p class="delete-error" role="alert">Couldn't delete this game. Try again.</p>
+  }
 </mat-card>
