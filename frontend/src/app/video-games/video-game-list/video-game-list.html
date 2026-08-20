@@ -7,19 +7,26 @@
   because import/export is per-collection: board games will want their own.
 -->
 <div class="library-actions">
+  <input
+    #fileInput
+    type="file"
+    accept=".csv,text/csv"
+    hidden
+    (change)="onFileSelected($event)"
+  />
   <!-- Becomes a <button> that clicks a hidden <input type="file">, since a
        raw file input can't be styled as a Material button. -->
-  <button mat-stroked-button type="button" disabled>
+  <button mat-stroked-button type="button" (click)="fileInput.click()">
     <mat-icon>upload</mat-icon>
     Import CSV
   </button>
 
   <!-- Becomes an <a [href]="exportUrl" download> — export is unguarded, so a
        plain link is enough; no fetch or blob needed. -->
-  <button mat-stroked-button type="button" disabled>
+  <a mat-stroked-button [href]="exportUrl">
     <mat-icon>download</mat-icon>
     Export CSV
-  </button>
+  </a>
 </div>
 
 <div class="toolbar">
