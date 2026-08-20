@@ -151,3 +151,125 @@ def test_delete_without_secret_is_401(client: TestClient, session: Session) -> N
     assert response.status_code == 401
     # Still there.
     assert len(client.get("/api/games").json()) == 1
+
+
+# --- CSV export -----------------------------------------------------------
+
+
+def test_export_returns_csv(
+    client: TestClient, session: Session, write_headers: dict
+) -> None:
+    session.add(VideoGame(title="Celeste", platform="PC", status="completed"))
+    session.commit()
+
+    response = client.get("/api/games/export", headers=write_headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+
+    lines = response.text.strip().splitlines()
+    assert lines[0] == "title,platform,status"
+    assert lines[1] == "Celeste,PC,completed"
+
+
+def test_export_without_secret_is_401(client: TestClient) -> None:
+    assert client.get("/api/games/export").status_code == 401
+
+
+# --- CSV import -----------------------------------------------------------
+
+
+def _csv_upload(body: str) -> dict:
+    """Build the multipart payload httpx expects: (filename, content, type)."""
+    return {"file": ("games.csv", body, "text/csv")}
+
+
+def test_import_inserts_rows(client: TestClient, write_headers: dict) -> None:
+    body = "title,platform,status\nChrono Trigger,SNES,beaten\nOuter Wilds,PC,completed\n"
+
+    response = client.post(
+        "/api/games/import", files=_csv_upload(body), headers=write_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"imported": 2}
+
+    titles = {g["title"] for g in client.get("/api/games").json()}
+    assert titles == {"Chrono Trigger", "Outer Wilds"}
+
+
+def test_import_reports_every_bad_row_and_inserts_nothing(
+    client: TestClient, write_headers: dict
+) -> None:
+    # Row 2 is fine; row 3 has a blank title, row 4 a blank platform.
+    body = (
+        "title,platform,status\n"
+        "Valid Game,PC,playing\n"
+        "   ,PS5,beaten\n"
+        "Another,,notPlayed\n"
+    )
+
+    response = client.post(
+        "/api/games/import", files=_csv_upload(body), headers=write_headers
+    )
+
+    assert response.status_code == 422
+    errors = response.json()["detail"]["errors"]
+    # Both failures reported, not just the first — and numbered as the user
+    # sees them in a spreadsheet.
+    assert [(e["row"], e["field"]) for e in errors] == [(3, "title"), (4, "platform")]
+
+    # All-or-nothing: the one valid row must NOT have been inserted.
+    assert client.get("/api/games").json() == []
+
+
+def test_import_rejects_missing_columns(
+    client: TestClient, write_headers: dict
+) -> None:
+    response = client.post(
+        "/api/games/import",
+        files=_csv_upload("name,console\nWrong,Columns\n"),
+        headers=write_headers,
+    )
+
+    assert response.status_code == 422
+    assert "Missing required column" in response.json()["detail"]
+
+
+def test_import_rejects_header_only_file(
+    client: TestClient, write_headers: dict
+) -> None:
+    response = client.post(
+        "/api/games/import",
+        files=_csv_upload("title,platform,status\n"),
+        headers=write_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_import_without_secret_is_401(client: TestClient) -> None:
+    body = "title,platform,status\nChrono Trigger,SNES,beaten\n"
+
+    response = client.post("/api/games/import", files=_csv_upload(body))
+
+    assert response.status_code == 401
+    assert client.get("/api/games").json() == []
+
+
+def test_export_output_can_be_reimported(
+    client: TestClient, session: Session, write_headers: dict
+) -> None:
+    """The round trip is the real contract: what comes out must go back in."""
+    session.add(VideoGame(title="Hades", platform="Switch", status="completed"))
+    session.commit()
+
+    exported = client.get("/api/games/export", headers=write_headers).text
+
+    response = client.post(
+        "/api/games/import", files=_csv_upload(exported), headers=write_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"imported": 1}
