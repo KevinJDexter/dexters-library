@@ -2,7 +2,7 @@
 Database models. Each SQLModel class with `table=True` becomes one table.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from pydantic import field_validator
@@ -36,6 +36,37 @@ class VideoGame(SQLModel, table=True):
     # every row with the same moment — same footgun as JS default params
     # evaluated at definition time, and a classic Python gotcha.
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # --- IGDB metadata (DL-24) ---------------------------------------------
+    # Every one of these is nullable and manually editable. IGDB is a source,
+    # not a system of record: nothing here may be populate-only-by-API, or the
+    # field breaks the day IGDB is down or has never heard of the game.
+
+    # Which IGDB record this came from. Not unique: today one row means "a
+    # game on a platform", so owning a game on three platforms is three rows
+    # sharing an igdb_id. DL-20's copy table is what changes that.
+    igdb_id: Optional[int] = Field(default=None)
+
+    # The image id (e.g. "co6ple"), NOT a URL. IGDB's url field points at a
+    # thumbnail; storing the id lets the frontend build any size it wants at
+    # render time by swapping the token: t_cover_big, t_720p, t_1080p.
+    cover_image_id: Optional[str] = Field(default=None)
+
+    # Displayable ESRB value: "E", "E10+", "T", "M", "AO", "RP". Null for
+    # Japan-only or pre-1994 titles with no ESRB entry.
+    esrb_rating: Optional[str] = Field(default=None)
+
+    summary: Optional[str] = Field(default=None)
+
+    # A date, not a datetime — IGDB sends a Unix timestamp but the time of
+    # day is meaningless here. Used for ordering within a collection.
+    first_release_date: Optional[date] = Field(default=None)
+
+    # Collapsed from IGDB's per-platform multiplayer_modes array by taking
+    # the max across every entry. Approximate on purpose: the question is
+    # "can I play this on the couch / with someone remote", which tolerates it.
+    max_local_players: Optional[int] = Field(default=None)
+    max_online_players: Optional[int] = Field(default=None)
 
 
 class VideoGameCreate(SQLModel):

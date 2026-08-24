@@ -26,7 +26,23 @@ def test_list_games_returns_seeded_rows(client: TestClient, session: Session) ->
     # Shape check on one row: the exact keys the frontend will rely on,
     # and the values we just inserted coming back out.
     first = games[0]
-    assert set(first.keys()) == {"id", "title", "platform", "status", "created_at"}
+    # Exact set on purpose: this fails when a column is added as well as when
+    # one goes missing, so the API's response contract can't change silently.
+    assert set(first.keys()) == {
+        "id",
+        "title",
+        "platform",
+        "status",
+        "created_at",
+        # IGDB metadata (DL-24). Null until DL-26 populates them.
+        "igdb_id",
+        "cover_image_id",
+        "esrb_rating",
+        "summary",
+        "first_release_date",
+        "max_local_players",
+        "max_online_players",
+    }
     assert first["title"] == "Outer Wilds"
     assert first["platform"] == "PC"
     assert first["status"] == "beaten"
