@@ -13,3 +13,4 @@ python-dotenv    # Loads backend/.env into the environment for local dev
 pytest           # Test runner — finds test_*.py files and runs their functions
 httpx            # HTTP client; FastAPI's TestClient needs it to make in-process requests
 python-multipart # Parses multipart/form-data — required for file uploads (CSV import)
+alembic          # Database migrations — versioned schema changes, replaces create_all

@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, SQLModel, text
+from sqlmodel import Session, text
 
 import health
 from database import engine
@@ -35,16 +35,6 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"Database connection: FAILED — {exc}")
         raise
-    # Creates every table registered on SQLModel.metadata that doesn't already
-    # exist. Existing tables are left alone — even if the model has changed,
-    # which is why a column change means drop-and-reseed (see backend/CLAUDE.md).
-    #
-    # Only tables whose models have been imported are registered. The router
-    # imports below pull in each package's models, which is what puts them on
-    # the metadata — a new feature package with no imported models would be
-    # silently skipped here.
-    SQLModel.metadata.create_all(engine)
-    print("Tables created (if missing).")
     yield
     # Nothing to clean up on shutdown yet.
 

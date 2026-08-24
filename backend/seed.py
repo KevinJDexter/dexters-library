@@ -4,13 +4,16 @@ Seed script: fills an empty video_game table with ten starter games.
 Run it from the backend/ directory:
     python seed.py
 
+Assumes the schema already exists. On a fresh database, run the migrations
+first:
+    .venv/bin/alembic upgrade head
+
 Re-runnable: if the table already has any rows, it does nothing. To re-seed
-from scratch (e.g. after a model change), drop the table first:
-    psql: DROP TABLE video_game;
-then run the app or this script again.
+from scratch, delete the rows (or `alembic downgrade base` then `upgrade
+head` to rebuild the schema) and run this again.
 """
 
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, select
 
 from database import engine
 from video_games.models import VideoGame
@@ -35,10 +38,6 @@ SEED_GAMES = [
 
 
 def seed() -> None:
-    # Make sure the table exists so this script works on a fresh database
-    # without needing the app to have started first. No-op if it's there.
-    SQLModel.metadata.create_all(engine)
-
     with Session(engine) as session:
         # select(VideoGame) is a query object; .first() runs it and returns
         # one row or None. Any row at all means we've already seeded — bail
