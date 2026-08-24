@@ -76,16 +76,6 @@ class IgdbGame:
     cover_url: Optional[str]
 
 
-# ---------------------------------------------------------------------------
-# Parsing — Dexter writes these three (DL-23).
-#
-# The tests in test_igdb.py are the spec; run them to check yourself:
-#     .venv/bin/python -m pytest test_igdb.py -v
-#
-# A real captured response is in sample_igdb_response.json for reference.
-# ---------------------------------------------------------------------------
-
-
 def _release_year(timestamp: Optional[int]) -> Optional[int]:
     if not timestamp:
         return None

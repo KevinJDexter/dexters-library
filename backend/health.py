@@ -1,5 +1,5 @@
 """
-The /api/health endpoint. Moved verbatim from main.py (DL-22).
+The /api/health endpoint.
 
 Not a feature package: health is app-level infrastructure, so it sits at the
 top level next to database.py and security.py rather than under a domain.
