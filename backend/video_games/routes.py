@@ -1,9 +1,8 @@
 """
-HTTP endpoints for video games. Moved verbatim from main.py (DL-22).
+HTTP endpoints for video games.
 
 An APIRouter is a group of routes that can be defined away from the app and
-mounted onto it later — main.py calls include_router(). Same decorators as
-before, just on `router` instead of `app`.
+mounted onto it later — main.py calls include_router().
 """
 
 import csv
