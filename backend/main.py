@@ -20,6 +20,7 @@ from sqlmodel import Session, text
 
 import health
 from database import engine
+from video_games import igdb_routes
 from video_games import routes as video_game_routes
 
 
@@ -68,3 +69,4 @@ app.add_middleware(
 # routes themselves ("/api/games"), so no prefix is needed here.
 app.include_router(health.router)
 app.include_router(video_game_routes.router)
+app.include_router(igdb_routes.router)
