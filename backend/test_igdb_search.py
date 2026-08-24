@@ -6,19 +6,9 @@ dependency with a stand-in. No network, and no need for httpx mocking here —
 that's already covered where the client itself is tested.
 """
 
-from typing import Optional
-
-import pytest
 from fastapi.testclient import TestClient
 
-from main import app
-from video_games.igdb import (
-    IgdbAuthError,
-    IgdbError,
-    IgdbGame,
-    IgdbUnavailable,
-    get_client,
-)
+from video_games.igdb import IgdbAuthError, IgdbError, IgdbGame, IgdbUnavailable
 
 FF6 = IgdbGame(
     igdb_id=1234,
@@ -26,41 +16,6 @@ FF6 = IgdbGame(
     release_year=1994,
     cover_url="https://images.igdb.com/igdb/image/upload/t_cover_big/abc.jpg",
 )
-
-
-class FakeIgdbClient:
-    """Stands in for IgdbClient. Either returns games or raises whatever the
-    test wants, and records the arguments it was called with."""
-
-    def __init__(self, results=None, raises: Optional[Exception] = None):
-        self.results = results if results is not None else []
-        self.raises = raises
-        self.calls: list[tuple] = []
-
-    def search(self, title: str, limit: int = 10):
-        self.calls.append((title, limit))
-        if self.raises:
-            raise self.raises
-        return self.results
-
-
-@pytest.fixture
-def fake_igdb():
-    """Installs a FakeIgdbClient for the duration of one test.
-
-    The fixture yields a setter rather than a client, because each test wants
-    a differently-configured fake. Whatever gets installed is torn down after.
-    """
-    installed: list[FakeIgdbClient] = []
-
-    def install(**kwargs) -> FakeIgdbClient:
-        client = FakeIgdbClient(**kwargs)
-        app.dependency_overrides[get_client] = lambda: client
-        installed.append(client)
-        return client
-
-    yield install
-    app.dependency_overrides.pop(get_client, None)
 
 
 def test_search_returns_candidates(client: TestClient, write_headers: dict, fake_igdb) -> None:
@@ -80,7 +35,7 @@ def test_search_returns_candidates(client: TestClient, write_headers: dict, fake
         }
     ]
     # The title reached the client unchanged, with the default limit.
-    assert fake.calls == [("final fantasy vi", 10)]
+    assert fake.search_calls == [("final fantasy vi", 10)]
 
 
 def test_search_passes_limit_through(client: TestClient, write_headers: dict, fake_igdb) -> None:
@@ -92,7 +47,7 @@ def test_search_passes_limit_through(client: TestClient, write_headers: dict, fa
         headers=write_headers,
     )
 
-    assert fake.calls == [("hades", 3)]
+    assert fake.search_calls == [("hades", 3)]
 
 
 def test_search_with_no_matches_returns_empty_list(
@@ -117,7 +72,7 @@ def test_search_requires_the_secret(client: TestClient, fake_igdb) -> None:
     assert response.status_code == 401
     # And IGDB was never called — the guard runs before the route body, so a
     # rejected request can't burn rate limit.
-    assert fake.calls == []
+    assert fake.search_calls == []
 
 
 def test_missing_title_is_422(client: TestClient, write_headers: dict, fake_igdb) -> None:
@@ -134,7 +89,7 @@ def test_blank_title_is_422(client: TestClient, write_headers: dict, fake_igdb) 
     )
 
     assert response.status_code == 422
-    assert fake.calls == []
+    assert fake.search_calls == []
 
 
 def test_limit_above_cap_is_422(client: TestClient, write_headers: dict, fake_igdb) -> None:

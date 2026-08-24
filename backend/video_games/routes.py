@@ -7,18 +7,36 @@ mounted onto it later — main.py calls include_router().
 
 import csv
 import io
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
+from sqlmodel import SQLModel
+
 from database import get_session
 from security import require_secret
+from video_games.igdb import (
+    IgdbAuthError,
+    IgdbClient,
+    IgdbError,
+    IgdbGameDetail,
+    IgdbUnavailable,
+    get_client,
+)
+from video_games.metadata import apply_igdb_detail
 from video_games.models import VideoGame, VideoGameCreate, VideoGameUpdate
 
 router = APIRouter()
+
+
+class IgdbApplyRequest(SQLModel):
+    """Body for re-applying a match. Optional — omitting it re-syncs the
+    game's existing igdb_id."""
+
+    igdb_id: Optional[int] = None
 
 # The CSV column order for both export and import. One tuple drives the
 # export header, the export rows, and the import's required-column check, so
@@ -48,6 +66,7 @@ def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoG
 def create_game(
     data: VideoGameCreate,
     session: Annotated[Session, Depends(get_session)],
+    igdb: Annotated[IgdbClient, Depends(get_client)],
 ) -> VideoGame:
     """Add one game. 201 (Created) instead of the default 200.
 
@@ -55,11 +74,19 @@ def create_game(
     treats it as the JSON request body: parse it, validate it, 422 on
     failure — all before this function is called. By the time we're here,
     `data` is guaranteed clean.
+
+    When the body carries an igdb_id, that record's metadata is fetched and
+    applied before the row is written. IGDB is only contacted in that case:
+    manual entry and CSV import never touch it.
     """
     # Copy the validated fields onto a fresh table-model instance. id and
     # created_at aren't on VideoGameCreate, so they fall back to their
     # defaults (None -> Postgres assigns; default_factory stamps the time).
     game = VideoGame.model_validate(data)
+
+    if data.igdb_id is not None:
+        detail = _fetch_detail(igdb, data.igdb_id)
+        apply_igdb_detail(session, game, detail)
 
     session.add(game)
     session.commit()
@@ -67,6 +94,69 @@ def create_game(
     # the response includes the database-assigned id.
     session.refresh(game)
     return game
+
+
+@router.post(
+    "/api/games/{game_id}/igdb", dependencies=[Depends(require_secret)]
+)
+def apply_igdb_to_game(
+    game_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    igdb: Annotated[IgdbClient, Depends(get_client)],
+    data: Optional[IgdbApplyRequest] = None,
+) -> VideoGame:
+    """Re-apply IGDB metadata to an existing game.
+
+    Send {"igdb_id": N} to link a game for the first time, or send nothing to
+    re-sync one that's already linked.
+
+    Same fill-blanks rule as create: this can only ever populate empty fields
+    and add tags. Nothing already on the record is replaced, so re-syncing is
+    always safe to run.
+    """
+    game = session.get(VideoGame, game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    igdb_id = (data.igdb_id if data else None) or game.igdb_id
+    if igdb_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This game has no IGDB id. Send one as {\"igdb_id\": N}.",
+        )
+
+    detail = _fetch_detail(igdb, igdb_id)
+    apply_igdb_detail(session, game, detail)
+
+    session.commit()
+    session.refresh(game)
+    return game
+
+
+def _fetch_detail(igdb: IgdbClient, igdb_id: int) -> IgdbGameDetail:
+    """Fetch one IGDB record, translating its failures into HTTP responses.
+
+    Shared by both routes above so the status mapping can't drift between
+    them. Mirrors the mapping in igdb_routes.py: 503 means try again, 502
+    means the upstream or our config is broken.
+    """
+    try:
+        detail = igdb.get_details(igdb_id)
+    except IgdbUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="IGDB is unreachable right now. Save without metadata and re-sync later.",
+        ) from exc
+    except IgdbAuthError as exc:
+        raise HTTPException(
+            status_code=502, detail="IGDB rejected our credentials."
+        ) from exc
+    except IgdbError as exc:
+        raise HTTPException(status_code=502, detail=f"IGDB request failed: {exc}") from exc
+
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"IGDB has no game with id {igdb_id}.")
+    return detail
 
 
 # NOTE: this must stay ABOVE any "/api/games/{game_id}" GET route. FastAPI
