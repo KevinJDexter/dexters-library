@@ -3,10 +3,61 @@ Database models. Each SQLModel class with `table=True` becomes one table.
 """
 
 from datetime import date, datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import field_validator
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
+
+
+class VideoGameTagLink(SQLModel, table=True):
+    """Join table for the many-to-many between video_game and tag.
+
+    Nothing but two foreign keys. Both are marked primary_key, which makes
+    the PAIR the primary key — so the same tag can't be attached to the same
+    game twice, enforced by the database rather than by our code.
+    """
+
+    __tablename__ = "video_game_tag"
+
+    video_game_id: Optional[int] = Field(
+        default=None, foreign_key="video_game.id", primary_key=True
+    )
+    tag_id: Optional[int] = Field(
+        default=None, foreign_key="tag.id", primary_key=True
+    )
+
+
+class Tag(SQLModel, table=True):
+    """One label of some kind, attachable to games.
+
+    Deliberately ONE table rather than six near-identical ones. `kind`
+    distinguishes genre from theme from game_mode etc. IGDB's genres, themes,
+    game_modes, player_perspectives, franchises and collections are all the
+    same shape — [{id, name}] — so six tables plus six join tables would be
+    twelve structures doing one job. Adding keywords later costs nothing.
+
+    Rows are ordinary data once created: rename one, merge two, or add a
+    genre IGDB has never heard of. The taxonomy is Dexter's; IGDB names are
+    just inputs to it.
+    """
+
+    __tablename__ = "tag"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # "genre" | "theme" | "game_mode" | "player_perspective" | "franchise"
+    # | "collection". A plain string, not an enum — same reasoning as status
+    # and platform: adding a kind shouldn't require a schema change.
+    kind: str = Field(index=True)
+
+    name: str
+
+    # `games` is not a column. Relationship tells SQLModel how to fetch the
+    # related rows through the link table; it's a Python-side convenience,
+    # and Alembic generates nothing for it.
+    games: List["VideoGame"] = Relationship(
+        back_populates="tags", link_model=VideoGameTagLink
+    )
 
 
 class VideoGame(SQLModel, table=True):
@@ -67,6 +118,15 @@ class VideoGame(SQLModel, table=True):
     # "can I play this on the couch / with someone remote", which tolerates it.
     max_local_players: Optional[int] = Field(default=None)
     max_online_players: Optional[int] = Field(default=None)
+
+    # The other half of Tag.games. back_populates on both sides is what keeps
+    # them in sync: appending to one updates the other in the same session.
+    # Not a column, and not part of the JSON this model serializes to —
+    # relationships are excluded from the API response unless a response
+    # model explicitly asks for them.
+    tags: List["Tag"] = Relationship(
+        back_populates="games", link_model=VideoGameTagLink
+    )
 
 
 class VideoGameCreate(SQLModel):
