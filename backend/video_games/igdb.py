@@ -11,8 +11,8 @@ run with no network at all: they hand in a client wired to a fake transport.
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import date, datetime, timezone
+from typing import Any, Optional, Tuple
 
 import httpx
 from dotenv import load_dotenv
@@ -76,6 +76,52 @@ class IgdbGame:
     cover_url: Optional[str]
 
 
+@dataclass(frozen=True)
+class IgdbTag:
+    """One label from IGDB, flattened to (kind, name).
+
+    IGDB returns genres, themes, game_modes, player_perspectives, franchises
+    and collections as six separate lists of the same shape. They collapse
+    to this one type because the `tag` table stores them all with a `kind`
+    column rather than in six parallel tables.
+    """
+
+    kind: str
+    name: str
+
+
+@dataclass(frozen=True)
+class IgdbGameDetail:
+    """Everything we store about a game, fetched once a match is chosen.
+
+    Separate from IgdbGame because search runs on every keystroke and this
+    doesn't. Requesting all of these fields for ten search results would
+    burn the rate limit for information nobody looked at.
+    """
+
+    igdb_id: int
+    name: str
+    summary: Optional[str]
+    first_release_date: Optional[date]
+    cover_image_id: Optional[str]
+    esrb_rating: Optional[str]
+    max_local_players: Optional[int]
+    max_online_players: Optional[int]
+    tags: Tuple[IgdbTag, ...]
+
+
+# Which IGDB list maps to which tag kind. Adding another IGDB list later
+# (keywords, say) is one line here plus one in the query.
+TAG_SOURCES: Tuple[Tuple[str, str], ...] = (
+    ("genres", "genre"),
+    ("themes", "theme"),
+    ("game_modes", "game_mode"),
+    ("player_perspectives", "player_perspective"),
+    ("franchises", "franchise"),
+    ("collections", "collection"),
+)
+
+
 def _release_year(timestamp: Optional[int]) -> Optional[int]:
     if not timestamp:
         return None
@@ -92,6 +138,117 @@ def _cover_url(cover: Optional[dict[str, Any]]) -> Optional[str]:
     if url.startswith("//"):
         return f"https:{url}"
     return url
+
+
+def _first_release_date(timestamp: Optional[int]) -> Optional[date]:
+    """Full release date, where _release_year keeps only the year.
+
+    Same Unix timestamp, same UTC requirement — a launch late on Dec 31 UTC
+    lands in the previous year if converted in a westward local timezone.
+    """
+    if not timestamp:
+        return None
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).date()
+
+
+def _cover_image_id(cover: Optional[dict[str, Any]]) -> Optional[str]:
+    """The bare image id (e.g. "co6ple"), not a URL.
+
+    We store the id so the frontend can build whatever size it needs at
+    render time; storing IGDB's `url` would pin us to a thumbnail forever.
+    """
+    if not cover:
+        return None
+    return cover.get("image_id")
+
+
+def _esrb_rating(age_ratings: Optional[list]) -> Optional[str]:
+    """The ESRB value, out of the several boards IGDB returns.
+
+    Each entry looks like:
+        {"organization": {"name": "ESRB"},
+         "rating_category": {"rating": "M"}}
+
+    Everything else (PEGI, CERO, CLASS_IND...) is discarded. Returns None
+    when there's no ESRB entry, which is normal for Japan-only and pre-1994
+    titles.
+    """
+    for entry in age_ratings or []:
+        organization = (entry.get("organization") or {}).get("name")
+        if organization == "ESRB":
+            rating = (entry.get("rating_category") or {}).get("rating")
+            if rating:
+                return rating
+    return None
+
+
+def _player_counts(
+    multiplayer_modes: Optional[list],
+) -> Tuple[Optional[int], Optional[int]]:
+    """(max_local, max_online), collapsed from IGDB's per-platform entries.
+
+    multiplayer_modes is a list with one entry PER PLATFORM, and the entries
+    disagree — Baldur's Gate 3 reports offlinecoopmax 2 on one platform and 1
+    on another. We take the max across every entry, because "can two people
+    play this on the couch" is a property of the game, not of which console
+    happens to be in the room.
+
+    Returns (None, None) when the list is absent entirely, which is common —
+    most single-player games have no multiplayer_modes at all.
+    """
+    local: list[int] = []
+    online: list[int] = []
+
+    for mode in multiplayer_modes or []:
+        for key in ("offlinemax", "offlinecoopmax"):
+            value = mode.get(key)
+            if isinstance(value, int) and value > 0:
+                local.append(value)
+        for key in ("onlinemax", "onlinecoopmax"):
+            value = mode.get(key)
+            if isinstance(value, int) and value > 0:
+                online.append(value)
+
+    return (max(local) if local else None, max(online) if online else None)
+
+
+def _tags(raw: dict[str, Any]) -> Tuple[IgdbTag, ...]:
+    """Flatten IGDB's six name-lists into (kind, name) pairs.
+
+    Order is preserved and duplicates are dropped, so a name appearing under
+    two kinds stays as two tags while a repeat within one kind collapses.
+    """
+    seen: set = set()
+    tags: list[IgdbTag] = []
+
+    for field, kind in TAG_SOURCES:
+        for entry in raw.get(field) or []:
+            name = (entry or {}).get("name")
+            if not name:
+                continue
+            key = (kind, name)
+            if key in seen:
+                continue
+            seen.add(key)
+            tags.append(IgdbTag(kind=kind, name=name))
+
+    return tuple(tags)
+
+
+def _parse_game_detail(raw: dict[str, Any]) -> IgdbGameDetail:
+    """Map one fully-expanded IGDB record onto IgdbGameDetail."""
+    local, online = _player_counts(raw.get("multiplayer_modes"))
+    return IgdbGameDetail(
+        igdb_id=raw["id"],
+        name=raw.get("name", ""),
+        summary=raw.get("summary"),
+        first_release_date=_first_release_date(raw.get("first_release_date")),
+        cover_image_id=_cover_image_id(raw.get("cover")),
+        esrb_rating=_esrb_rating(raw.get("age_ratings")),
+        max_local_players=local,
+        max_online_players=online,
+        tags=_tags(raw),
+    )
 
 
 def _parse_game(raw: dict[str, Any]) -> IgdbGame:
@@ -203,6 +360,29 @@ class IgdbClient:
 
         raw_results = self._post_query(query)
         return [_parse_game(item) for item in raw_results]
+
+    # --- detail ----------------------------------------------------------
+
+    def get_details(self, igdb_id: int) -> Optional[IgdbGameDetail]:
+        """Everything we store about one game. None if IGDB has no such id.
+
+        `where id = N` instead of `search`: this is a lookup, not a query, so
+        it returns at most one record.
+        """
+        query = (
+            "fields name, summary, first_release_date, cover.image_id, "
+            "age_ratings.organization.name, age_ratings.rating_category.rating, "
+            "multiplayer_modes.*, "
+            "genres.name, themes.name, game_modes.name, "
+            "player_perspectives.name, franchises.name, collections.name; "
+            f"where id = {int(igdb_id)}; "
+            "limit 1;"
+        )
+
+        results = self._post_query(query)
+        if not results:
+            return None
+        return _parse_game_detail(results[0])
 
     def _post_query(self, query: str, allow_retry: bool = True) -> list[dict[str, Any]]:
         """POST an Apicalypse query, refreshing the token once on a 401."""

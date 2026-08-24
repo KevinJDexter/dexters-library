@@ -7,6 +7,8 @@ client makes lands in our handler and we decide what comes back — including
 failures that would be impossible to trigger against the real service.
 """
 
+from datetime import date
+
 import httpx
 import pytest
 
@@ -15,14 +17,21 @@ from video_games.igdb import (
     IgdbClient,
     IgdbError,
     IgdbGame,
+    IgdbGameDetail,
+    IgdbTag,
     IgdbUnavailable,
+    _cover_image_id,
     _cover_url,
+    _esrb_rating,
+    _first_release_date,
+    _player_counts,
     _release_year,
+    _tags,
 )
 
 TOKEN_BODY = {"access_token": "fake-token-1", "expires_in": 5_000_000}
 
-# 1994-03-23, comfortably inside FF6's release year.
+# 1994-03-24 UTC.
 FF6_TIMESTAMP = 764467200
 
 FF6_RAW = {
@@ -306,3 +315,170 @@ def test_bad_query_raises_generic_igdb_error() -> None:
         make_client(handler).search("anything")
 
     assert not isinstance(caught.value, (IgdbUnavailable, IgdbAuthError))
+
+
+# --- detail parsing -------------------------------------------------------
+
+
+def test_first_release_date_returns_a_date() -> None:
+    assert _first_release_date(FF6_TIMESTAMP) == date(1994, 3, 24)
+
+
+def test_first_release_date_handles_missing() -> None:
+    assert _first_release_date(None) is None
+
+
+def test_cover_image_id_is_the_bare_id() -> None:
+    assert _cover_image_id({"image_id": "co6ple", "url": "//x/t_thumb/y.jpg"}) == "co6ple"
+    assert _cover_image_id(None) is None
+    assert _cover_image_id({}) is None
+
+
+def test_esrb_rating_picks_esrb_out_of_several_boards() -> None:
+    age_ratings = [
+        {"organization": {"name": "CERO"}, "rating_category": {"rating": "Z"}},
+        {"organization": {"name": "PEGI"}, "rating_category": {"rating": "18"}},
+        {"organization": {"name": "ESRB"}, "rating_category": {"rating": "M"}},
+    ]
+
+    assert _esrb_rating(age_ratings) == "M"
+
+
+def test_esrb_rating_is_none_when_no_esrb_entry() -> None:
+    # Normal for Japan-only and pre-1994 titles.
+    assert _esrb_rating([{"organization": {"name": "CERO"}, "rating_category": {"rating": "Z"}}]) is None
+    assert _esrb_rating([]) is None
+    assert _esrb_rating(None) is None
+
+
+def test_player_counts_take_the_max_across_conflicting_entries() -> None:
+    """multiplayer_modes has one entry PER PLATFORM and they disagree — this
+    is the real Baldur's Gate 3 data."""
+    modes = [
+        {"offlinemax": 1, "offlinecoopmax": 2, "onlinemax": 4, "onlinecoopmax": 4},
+        {"offlinemax": 1, "offlinecoopmax": 1, "onlinemax": 4, "onlinecoopmax": 4},
+    ]
+
+    assert _player_counts(modes) == (2, 4)
+
+
+def test_player_counts_are_none_without_multiplayer_modes() -> None:
+    # The common case: most single-player games have no entry at all.
+    assert _player_counts(None) == (None, None)
+    assert _player_counts([]) == (None, None)
+
+
+def test_player_counts_ignore_missing_and_zero_values() -> None:
+    modes = [{"offlinecoopmax": 0, "onlinemax": 8}]
+
+    assert _player_counts(modes) == (None, 8)
+
+
+def test_tags_flatten_all_six_sources() -> None:
+    raw = {
+        "genres": [{"name": "Role-playing (RPG)"}],
+        "themes": [{"name": "Fantasy"}],
+        "game_modes": [{"name": "Single player"}],
+        "player_perspectives": [{"name": "Side view"}],
+        "franchises": [{"name": "Dungeons & Dragons"}],
+        "collections": [{"name": "Baldur's Gate"}],
+    }
+
+    assert _tags(raw) == (
+        IgdbTag("genre", "Role-playing (RPG)"),
+        IgdbTag("theme", "Fantasy"),
+        IgdbTag("game_mode", "Single player"),
+        IgdbTag("player_perspective", "Side view"),
+        IgdbTag("franchise", "Dungeons & Dragons"),
+        IgdbTag("collection", "Baldur's Gate"),
+    )
+
+
+def test_tags_keep_the_same_name_under_different_kinds() -> None:
+    """'Action' is both a genre and a theme in IGDB — they're distinct tags."""
+    raw = {"genres": [{"name": "Action"}], "themes": [{"name": "Action"}]}
+
+    assert _tags(raw) == (IgdbTag("genre", "Action"), IgdbTag("theme", "Action"))
+
+
+def test_tags_drop_duplicates_within_a_kind_and_skip_nameless_entries() -> None:
+    raw = {"genres": [{"name": "Indie"}, {"name": "Indie"}, {}, {"name": None}]}
+
+    assert _tags(raw) == (IgdbTag("genre", "Indie"),)
+
+
+def test_tags_on_a_game_with_no_lists_is_empty() -> None:
+    assert _tags({"id": 1, "name": "Bare"}) == ()
+
+
+# --- get_details ----------------------------------------------------------
+
+
+def test_get_details_returns_parsed_detail() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if is_token_request(request):
+            return httpx.Response(200, json=TOKEN_BODY)
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": 119171,
+                    "name": "Baldur's Gate III",
+                    "summary": "An ancient evil has returned.",
+                    "first_release_date": 1691020800,
+                    "cover": {"image_id": "co670h"},
+                    "age_ratings": [
+                        {"organization": {"name": "PEGI"}, "rating_category": {"rating": "18"}},
+                        {"organization": {"name": "ESRB"}, "rating_category": {"rating": "M"}},
+                    ],
+                    "multiplayer_modes": [
+                        {"offlinecoopmax": 2, "onlinecoopmax": 4},
+                        {"offlinecoopmax": 1, "onlinecoopmax": 4},
+                    ],
+                    "genres": [{"name": "Role-playing (RPG)"}],
+                    "collections": [{"name": "Baldur's Gate"}],
+                }
+            ],
+        )
+
+    detail = make_client(handler).get_details(119171)
+
+    assert detail == IgdbGameDetail(
+        igdb_id=119171,
+        name="Baldur's Gate III",
+        summary="An ancient evil has returned.",
+        first_release_date=date(2023, 8, 3),
+        cover_image_id="co670h",
+        esrb_rating="M",
+        max_local_players=2,
+        max_online_players=4,
+        tags=(
+            IgdbTag("genre", "Role-playing (RPG)"),
+            IgdbTag("collection", "Baldur's Gate"),
+        ),
+    )
+
+
+def test_get_details_uses_a_where_clause_not_search() -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        if is_token_request(request):
+            return httpx.Response(200, json=TOKEN_BODY)
+        return httpx.Response(200, json=[])
+
+    make_client(handler).get_details(119171)
+
+    body = sent[-1].content.decode()
+    assert "where id = 119171;" in body
+    assert "search" not in body
+
+
+def test_get_details_returns_none_for_unknown_id() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if is_token_request(request):
+            return httpx.Response(200, json=TOKEN_BODY)
+        return httpx.Response(200, json=[])
+
+    assert make_client(handler).get_details(999999999) is None
