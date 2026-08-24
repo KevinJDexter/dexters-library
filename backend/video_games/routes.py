@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from database import get_session
-from security import require_write_secret
+from security import require_secret
 from video_games.models import VideoGame, VideoGameCreate, VideoGameUpdate
 
 router = APIRouter()
@@ -44,7 +44,7 @@ def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoG
 
 # dependencies=[...] (vs a parameter) runs the guard without handing its
 # return value to the route — we only care about the 401 it can raise.
-@router.post("/api/games", status_code=201, dependencies=[Depends(require_write_secret)])
+@router.post("/api/games", status_code=201, dependencies=[Depends(require_secret)])
 def create_game(
     data: VideoGameCreate,
     session: Annotated[Session, Depends(get_session)],
@@ -110,7 +110,7 @@ def export_games(session: Annotated[Session, Depends(get_session)]) -> Streaming
     )
 
 
-@router.post("/api/games/import", dependencies=[Depends(require_write_secret)])
+@router.post("/api/games/import", dependencies=[Depends(require_secret)])
 async def import_games(
     file: Annotated[UploadFile, File()],
     session: Annotated[Session, Depends(get_session)],
@@ -181,7 +181,7 @@ async def import_games(
 
 
 @router.patch(
-    "/api/games/{game_id}", dependencies=[Depends(require_write_secret)]
+    "/api/games/{game_id}", dependencies=[Depends(require_secret)]
 )
 def update_game(
     game_id: int,
@@ -220,7 +220,7 @@ def update_game(
 @router.delete(
     "/api/games/{game_id}",
     status_code=204,
-    dependencies=[Depends(require_write_secret)],
+    dependencies=[Depends(require_secret)],
 )
 def delete_game(
     game_id: int,
