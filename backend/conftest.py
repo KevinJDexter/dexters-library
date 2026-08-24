@@ -29,6 +29,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from database import get_session
 from main import app
+from video_games.igdb import get_client
 
 load_dotenv()
 
@@ -87,3 +88,47 @@ def write_headers() -> dict:
     constant) so it stays correct even when WRITE_SECRET was already set
     in the shell and setdefault above didn't win."""
     return {"X-Write-Secret": os.environ["WRITE_SECRET"]}
+
+
+class FakeIgdbClient:
+    """Stands in for IgdbClient in endpoint tests.
+
+    Returns whatever the test configures, or raises, and records every call
+    — which is how tests assert that IGDB was *not* contacted on paths that
+    shouldn't touch it.
+    """
+
+    def __init__(self, results=None, detail=None, raises=None):
+        self.results = results if results is not None else []
+        self.detail = detail
+        self.raises = raises
+        self.search_calls: list[tuple] = []
+        self.detail_calls: list[int] = []
+
+    def search(self, title: str, limit: int = 10):
+        self.search_calls.append((title, limit))
+        if self.raises:
+            raise self.raises
+        return self.results
+
+    def get_details(self, igdb_id: int):
+        self.detail_calls.append(igdb_id)
+        if self.raises:
+            raise self.raises
+        return self.detail
+
+
+@pytest.fixture
+def fake_igdb():
+    """Installs a FakeIgdbClient in place of the real one for one test.
+
+    Yields a factory rather than a client because each test wants a
+    differently-configured fake; whatever gets installed is torn down after.
+    """
+    def install(**kwargs) -> FakeIgdbClient:
+        fake = FakeIgdbClient(**kwargs)
+        app.dependency_overrides[get_client] = lambda: fake
+        return fake
+
+    yield install
+    app.dependency_overrides.pop(get_client, None)

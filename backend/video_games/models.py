@@ -149,6 +149,11 @@ class VideoGameCreate(SQLModel):
     platform: str = Field(min_length=1, max_length=50)
     status: str = Field(min_length=1, max_length=30)
 
+    # Optional: when supplied, the server fetches that IGDB record and fills
+    # the metadata columns from it. Omitted for manual entry and CSV import,
+    # both of which must keep working with no IGDB involvement at all.
+    igdb_id: Optional[int] = Field(default=None)
+
     # A validator is a decorated class method Pydantic calls mid-parse.
     # This one strips whitespace BEFORE the min_length check runs
     # (mode="before"), so "   " counts as empty and gets rejected instead
