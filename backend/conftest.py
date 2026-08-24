@@ -16,6 +16,12 @@ import os
 TEST_WRITE_SECRET = "test-write-secret"
 os.environ.setdefault("WRITE_SECRET", TEST_WRITE_SECRET)
 
+# Same reason: video_games/igdb.py refuses to import without credentials.
+# Tests never make a real IGDB call (they inject a fake transport), so these
+# only need to exist, not be valid.
+os.environ.setdefault("IGDB_CLIENT_ID", "test-igdb-client-id")
+os.environ.setdefault("IGDB_CLIENT_SECRET", "test-igdb-client-secret")
+
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
