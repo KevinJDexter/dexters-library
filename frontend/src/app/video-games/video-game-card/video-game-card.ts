@@ -9,7 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfirmDialog, ConfirmDialogData } from '../../shared/confirm-dialog/confirm-dialog';
-import { STATUS_LABELS, VideoGame } from '../video-game';
+import { STATUS_LABELS, VideoGame, coverUrl } from '../video-game';
 import { VideoGames } from '../video-games';
 
 @Component({
@@ -33,6 +33,9 @@ export class VideoGameCard {
   private readonly store = inject(VideoGames);
   private readonly dialog = inject(MatDialog);
   readonly statusLabels = STATUS_LABELS;
+  // Templates can't call imported functions directly — they only see class
+  // members, so the helper is re-exposed here.
+  protected readonly coverUrl = coverUrl;
 
   protected readonly deleteError = signal(false);
   // Guards against a second tap while the first delete is still in flight.
