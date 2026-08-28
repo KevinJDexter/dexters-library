@@ -1,0 +1,94 @@
+.igdb-search {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  /* A rule under the whole block, so it reads as a separate optional step
+     rather than the first field of the form. */
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.875rem;
+}
+
+.search-field {
+  width: 100%;
+}
+
+.status {
+  margin: 12px 0 0;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.875rem;
+}
+
+.status.error {
+  color: var(--mat-sys-error);
+}
+
+.results {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Long result lists shouldn't push the form off screen on a phone. */
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result:hover,
+.result:focus-visible {
+  background: var(--mat-sys-surface-container-high);
+}
+
+.result img,
+.no-cover {
+  flex: 0 0 auto;
+  width: 44px;
+  /* Matches IGDB's cover ratio, so rows don't jump as images load. */
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.no-cover {
+  display: grid;
+  place-items: center;
+  background: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.result-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.result-name {
+  /* Long titles truncate rather than wrapping the row to three lines. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-year {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.8125rem;
+}

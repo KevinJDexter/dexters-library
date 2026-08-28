@@ -1,8 +1,10 @@
 <mat-card appearance="outlined">
-  @if (game().coverUrl; as cover) {
+  <!-- The API stores an IGDB image id, not a URL, so the size is chosen here
+       at render time. Still null for games added by hand or with no IGDB
+       match, hence the placeholder. -->
+  @if (coverUrl(game().cover_image_id); as cover) {
     <img mat-card-image [src]="cover" [alt]="game().title + ' cover art'" />
   } @else {
-    <!-- Placeholder until a metadata API supplies real cover art. -->
     <div class="cover-placeholder" aria-hidden="true">
       <mat-icon>videogame_asset</mat-icon>
     </div>

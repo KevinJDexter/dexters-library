@@ -7,7 +7,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 
-import { VideoGame, VideoGameStatus, STATUS_LABELS } from '../video-game';
+import { IgdbSearch } from '../igdb-search/igdb-search';
+import {
+  IgdbSearchResult,
+  STATUS_LABELS,
+  VideoGameDraft,
+  VideoGameStatus,
+} from '../video-game';
 import { VideoGames } from '../video-games';
 
 @Component({
@@ -20,6 +26,7 @@ import { VideoGames } from '../video-games';
     MatSelectModule,
     MatButtonModule,
     MatIconModule,
+    IgdbSearch,
   ],
   templateUrl: './video-game-form.html',
   styleUrl: './video-game-form.css',
@@ -44,11 +51,11 @@ export class VideoGameForm implements OnInit {
 
   // Template-driven form state. Plain properties (not signals) are fine here:
   // ngModel drives the inputs and nothing else derives from these values.
-  protected draft: Omit<VideoGame, 'id' | 'created_at'> = {
+  protected draft: VideoGameDraft = {
     title: '',
     platform: '',
     status: 'notPlayed',
-    coverUrl: null,
+    igdb_id: null,
   };
 
   ngOnInit(): void {
@@ -56,8 +63,21 @@ export class VideoGameForm implements OnInit {
     // so the edit case has to load its data here instead of at declaration.
     const existing = this.editing();
     if (existing) {
-      this.draft = { ...existing };
+      this.draft = {
+        title: existing.title,
+        platform: existing.platform,
+        status: existing.status,
+        igdb_id: existing.igdb_id,
+      };
     }
+  }
+
+  protected onIgdbSelected(result: IgdbSearchResult): void {
+    this.draft = {
+      ...this.draft,
+      title: result.name,
+      igdb_id: result.igdb_id,
+    };
   }
 
 

@@ -1,7 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { HttpClient, httpResource } from '@angular/common/http';
 
-import { VideoGame } from './video-game';
+import { IgdbSearchResult, VideoGame, VideoGameDraft } from './video-game';
 import { environment } from '../../environments/environment';
 import { firstValueFrom } from 'rxjs';
 
@@ -24,7 +24,7 @@ export class VideoGames {
     return this.videoGames().find((game) => game.id === id);
   }
 
-  async add(draft: Omit<VideoGame, 'id' | 'created_at'>): Promise<VideoGame> {
+  async add(draft: VideoGameDraft): Promise<VideoGame> {
     const created = await firstValueFrom(
       this.http.post<VideoGame>(`${environment.apiUrl}/api/games`, draft, {
         headers: { 'X-Write-Secret': environment.writeSecret },
@@ -34,7 +34,7 @@ export class VideoGames {
     return created;
   }
 
-  async update(id: number, changes: Omit<VideoGame, 'id' | 'created_at'>): Promise<VideoGame> {
+  async update(id: number, changes: Partial<VideoGameDraft>): Promise<VideoGame> {
     const updated = await firstValueFrom(
       this.http.patch<VideoGame>(`${environment.apiUrl}/api/games/${id}`, changes, {
         headers: { 'X-Write-Secret': environment.writeSecret },
@@ -66,6 +66,21 @@ export class VideoGames {
     );
     this.refresh();
     return result.imported;
+  }
+
+  async searchIgdb(title: string, limit = 10): Promise<IgdbSearchResult[]> {
+    if (title.trim().length < 3) {
+      // Don't even hit the backend for short queries
+      // UX choice to avoid spamming the IGDB API with queries that are unlikely to return useful results.
+      return [];
+    }
+    const result = await firstValueFrom(
+      this.http.get<IgdbSearchResult[]>(`${environment.apiUrl}/api/igdb/search`, {
+        headers: { 'X-Write-Secret': environment.writeSecret },
+        params: { title, limit },
+      })
+    );
+    return result;
   }
 
   refresh(): void {

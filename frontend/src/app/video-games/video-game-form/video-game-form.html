@@ -1,13 +1,15 @@
 <h2>{{ editing() ? 'Edit game' : 'Add a game' }}</h2>
 
-<!-- Placeholder for the future metadata lookup (IGDB/RAWG/etc.). Disabled on
-     purpose: the layout reserves the space so wiring it up later doesn't
-     reshuffle the page. -->
-<mat-form-field appearance="outline" class="full-width">
-  <mat-label>Search a games database</mat-label>
-  <input matInput disabled placeholder="Coming later — auto-fill title, cover art, and more" />
-  <mat-icon matSuffix>travel_explore</mat-icon>
-</mat-form-field>
+<!--
+  Only shown when adding. Editing an existing game deliberately doesn't offer
+  search: re-linking a game to a different IGDB record is a different action
+  from correcting its title, and the backend won't re-point an igdb_id that's
+  already set. Change this if you decide linking an unlinked game from the
+  edit screen is worth having.
+-->
+@if (!editing()) {
+  <app-igdb-search (selected)="onIgdbSelected($event)" />
+}
 
 <form (ngSubmit)="save()" #form="ngForm">
   <mat-form-field appearance="outline" class="full-width">
