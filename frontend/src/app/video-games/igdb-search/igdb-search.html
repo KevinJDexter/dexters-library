@@ -1,0 +1,71 @@
+<!--
+  Markup is complete — the holes are in igdb-search.ts. This template already
+  reads every signal the component declares, so it compiles as-is and will
+  start working the moment onQueryChange fills those signals in.
+-->
+<section class="igdb-search">
+  <p class="hint">
+    Search IGDB to fill in cover art and details, or skip this and type
+    everything yourself below.
+  </p>
+
+  <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+    <mat-label>Search IGDB by title</mat-label>
+    <input
+      matInput
+      type="search"
+      [value]="query()"
+      (input)="onQueryChange($any($event.target).value)"
+      autocomplete="off"
+    />
+    @if (query()) {
+      <button
+        matSuffix
+        mat-icon-button
+        type="button"
+        aria-label="Clear search"
+        (click)="clear()"
+      >
+        <mat-icon>close</mat-icon>
+      </button>
+    } @else {
+      <mat-icon matSuffix>search</mat-icon>
+    }
+  </mat-form-field>
+
+  @if (isSearching()) {
+    <p class="status" role="status">Searching…</p>
+  } @else if (searchError()) {
+    <!-- IGDB being unreachable must never block the form below. -->
+    <p class="status error" role="alert">
+      {{ searchError() }} You can still fill the form in by hand.
+    </p>
+  } @else if (results().length > 0) {
+    <ul class="results">
+      @for (result of results(); track result.igdb_id) {
+        <li>
+          <button type="button" class="result" (click)="choose(result)">
+            @if (result.cover_url) {
+              <img [src]="result.cover_url" [alt]="result.name + ' cover art'" />
+            } @else {
+              <span class="no-cover" aria-hidden="true">
+                <mat-icon>videogame_asset</mat-icon>
+              </span>
+            }
+            <span class="result-text">
+              <span class="result-name">{{ result.name }}</span>
+              <!-- The year is what separates a game from its remake, so it
+                   earns a place even though it's only a number. -->
+              <span class="result-year">{{ result.release_year ?? 'Unknown year' }}</span>
+            </span>
+          </button>
+        </li>
+      }
+    </ul>
+  } @else if (hasSearched()) {
+    <p class="status">
+      No matches. That's normal for obscure or regional releases — fill the
+      form in by hand.
+    </p>
+  }
+</section>
