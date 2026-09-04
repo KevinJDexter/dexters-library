@@ -59,6 +59,12 @@ the database holds real data now.
 - Tests run against a local PostgreSQL database, not SQLite. Don't
   suggest SQLite for backend tests, even for speed — type looseness
   there can hide a red deploy behind green tests.
+- Tests live inside the feature package they cover
+  (`video_games/tests/`), mirroring the source layout. Shared fixtures
+  stay in `backend/conftest.py` — pytest finds conftest files
+  hierarchically, so root fixtures reach every nested test directory.
+- Each `tests/` folder needs an `__init__.py`, or pytest imports test
+  modules by bare basename and same-named files in two packages collide.
 
 ## Data modeling
 
