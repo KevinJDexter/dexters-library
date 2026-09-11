@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -220,6 +220,71 @@ class VideoGame(SQLModel, table=True):
     copies: List["Copy"] = Relationship(
         back_populates="video_game", cascade_delete=True
     )
+
+
+class CopyCreate(SQLModel):
+    """What a client sends to add a copy.
+
+    format and access are typed as the enums rather than plain str, so an
+    invalid value is a 422 with a list of what's allowed — Pydantic does that
+    for free. The database columns stay varchar; this is validation at the
+    boundary, not a constraint in the schema.
+    """
+
+    platform_id: int
+    format: Optional[CopyFormat] = None
+    access: CopyAccess = CopyAccess.OWNED
+    borrowed_from: Optional[str] = Field(default=None, max_length=100)
+
+    @field_validator("borrowed_from", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    # A model_validator runs AFTER every field is parsed, so it can compare
+    # fields against each other — a field_validator only ever sees one value.
+    # That's the distinction: cross-field rules need this one.
+    @model_validator(mode="after")
+    def borrowed_from_requires_borrowed_access(self) -> "CopyCreate":
+        if self.borrowed_from and self.access != CopyAccess.BORROWED:
+            raise ValueError(
+                "borrowed_from only applies when access is 'borrowed'."
+            )
+        return self
+
+
+class CopyRead(SQLModel):
+    """A copy as the API returns it.
+
+    Carries platform_name alongside platform_id so a card can render its
+    platform badges without a second request or a client-side join against
+    /api/platforms.
+    """
+
+    id: int
+    video_game_id: int
+    platform_id: int
+    platform_name: str
+    format: Optional[str]
+    access: str
+    borrowed_from: Optional[str]
+
+
+class PlatformCreate(SQLModel):
+    """What a client sends to add a platform. The whole point of platform
+    being a table is that a new console needs no code change — just a row."""
+
+    name: str = Field(min_length=1, max_length=60)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class VideoGameCreate(SQLModel):
