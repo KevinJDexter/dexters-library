@@ -3,10 +3,33 @@ Database models. Each SQLModel class with `table=True` becomes one table.
 """
 
 from datetime import date, datetime, timezone
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import field_validator
 from sqlmodel import Field, Relationship, SQLModel
+
+
+class CopyFormat(str, Enum):
+    """How a copy is held. Inheriting from `str` as well as Enum means these
+    compare equal to their plain strings and serialize to JSON as strings —
+    so the database column stays a plain varchar while the API still validates.
+    """
+
+    PHYSICAL = "physical"
+    DIGITAL = "digital"
+
+
+class CopyAccess(str, Enum):
+    """What keeps a copy playable.
+
+    The question this answers is "does this vanish if I stop paying?" —
+    Subscription does, Owned doesn't, Borrowed vanishes when it goes back.
+    """
+
+    OWNED = "owned"
+    SUBSCRIPTION = "subscription"
+    BORROWED = "borrowed"
 
 
 class VideoGameTagLink(SQLModel, table=True):
@@ -58,6 +81,70 @@ class Tag(SQLModel, table=True):
     games: List["VideoGame"] = Relationship(
         back_populates="tags", link_model=VideoGameTagLink
     )
+
+
+class Platform(SQLModel, table=True):
+    """Somewhere a game can be played: PS5, Steam, Wii Virtual Console, GOG.
+
+    A table rather than an enum, by the project's own heuristic: adding a
+    platform requires no code change anywhere, it's just another row in a
+    dropdown. Status stays a plain string because adding one WOULD mean code
+    changes — the UI treats Playing differently from Dropped.
+
+    The foreign key from `copy` also makes "PS5" vs "Playstation 5" typos
+    impossible, which a free-text column could never guarantee.
+    """
+
+    __tablename__ = "platform"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    # unique so the same platform can't be entered twice under one spelling.
+    name: str = Field(unique=True, index=True)
+
+    copies: List["Copy"] = Relationship(back_populates="platform")
+
+
+class Copy(SQLModel, table=True):
+    """One way Dexter can play a game. Owning something on three platforms is
+    three rows; owning it physically AND digitally is two.
+
+    Ownership is derived from these rows, never stored as a flag: a game is
+    in the library if it has at least one copy, and Watching if it has none.
+    A boolean could disagree with reality; a row count can't.
+    """
+
+    __tablename__ = "copy"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # ondelete="CASCADE" pushes the cleanup into the database: deleting a game
+    # removes its copies automatically. Without it, DELETE /api/games/{id}
+    # would fail with a foreign-key violation the moment a game has copies.
+    video_game_id: int = Field(
+        foreign_key="video_game.id", index=True, ondelete="CASCADE"
+    )
+
+    # Deliberately NO ondelete here. Deleting a platform that copies still
+    # point at should fail loudly rather than silently destroying them.
+    platform_id: int = Field(foreign_key="platform.id", index=True)
+
+    # Plain strings, validated by the enums above at the API boundary rather
+    # than by a database constraint — same approach as `status`. A native
+    # Postgres ENUM type would need an ALTER TYPE migration every time a value
+    # is added, which is a lot of ceremony for a dropdown.
+    #
+    # format is nullable because it's genuinely unknown for rows migrated from
+    # the old single-platform column: we knew the platform, never the medium.
+    # Guessing would put data in the database that nobody should trust.
+    format: Optional[str] = Field(default=None)
+    access: str = Field(default=CopyAccess.OWNED.value)
+
+    # A real column rather than free text, because "what do I still need to
+    # give back" is a question worth being able to answer.
+    borrowed_from: Optional[str] = Field(default=None)
+
+    video_game: Optional["VideoGame"] = Relationship(back_populates="copies")
+    platform: Optional[Platform] = Relationship(back_populates="copies")
 
 
 class VideoGame(SQLModel, table=True):
@@ -126,6 +213,12 @@ class VideoGame(SQLModel, table=True):
     # model explicitly asks for them.
     tags: List["Tag"] = Relationship(
         back_populates="games", link_model=VideoGameTagLink
+    )
+
+    # Every way this game can be played. An empty list is meaningful: it means
+    # "tracking but don't have it", which is what the Watching view shows.
+    copies: List["Copy"] = Relationship(
+        back_populates="video_game", cascade_delete=True
     )
 
 
