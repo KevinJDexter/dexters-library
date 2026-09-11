@@ -164,9 +164,13 @@ class VideoGame(SQLModel, table=True):
     # No Field() needed unless we're overriding something.
     title: str
 
-    # Plain strings by design — validation of allowed values will live in
-    # app code (Python/TS enums), not as database constraints.
-    platform: str
+    # DEPRECATED, pending removal. Ownership moved to the `copy` table;
+    # this column is nullable and no longer written by new code, kept only
+    # so already-deployed clients reading it don't break mid-rollout.
+    platform: Optional[str] = Field(default=None)
+
+    # Plain string by design — validation of allowed values lives in app
+    # code (Python/TS enums), not as a database constraint.
     status: str
 
     # default_factory takes a function to call per-row at insert time.
@@ -273,6 +277,40 @@ class CopyRead(SQLModel):
     borrowed_from: Optional[str]
 
 
+class VideoGameRead(SQLModel):
+    """A game as the API returns it, with its copies attached.
+
+    Written out field by field rather than inheriting from VideoGame: a
+    subclass drags the SQLAlchemy relationship attributes along, and Pydantic
+    can't build a schema for those.
+
+    The cost is that a new column has to be added here too. The benefit is
+    that the response shape is now an explicit contract rather than "whatever
+    columns the table happens to have" — worth having at an API boundary.
+    """
+
+    id: int
+    title: str
+    status: str
+    created_at: datetime
+
+    # Deprecated, still returned so already-deployed clients don't break.
+    platform: Optional[str] = None
+
+    igdb_id: Optional[int] = None
+    cover_image_id: Optional[str] = None
+    esrb_rating: Optional[str] = None
+    summary: Optional[str] = None
+    first_release_date: Optional[date] = None
+    max_local_players: Optional[int] = None
+    max_online_players: Optional[int] = None
+
+    # Every way this game can be played. Empty means tracked-but-not-owned,
+    # which is what the Watching view lists — the partition is derived from
+    # this, never stored.
+    copies: List[CopyRead] = []
+
+
 class PlatformCreate(SQLModel):
     """What a client sends to add a platform. The whole point of platform
     being a table is that a new console needs no code change — just a row."""
@@ -304,8 +342,11 @@ class VideoGameCreate(SQLModel):
     """
 
     title: str = Field(min_length=1, max_length=200)
-    platform: str = Field(min_length=1, max_length=50)
     status: str = Field(min_length=1, max_length=30)
+
+    # Accepted but optional, and deprecated. Ownership belongs on copies now.
+    # Still written when supplied so an older client mid-rollout keeps working.
+    platform: Optional[str] = Field(default=None, max_length=50)
 
     # Optional: when supplied, the server fetches that IGDB record and fills
     # the metadata columns from it. Omitted for manual entry and CSV import,

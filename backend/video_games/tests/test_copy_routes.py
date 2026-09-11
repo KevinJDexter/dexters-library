@@ -221,3 +221,51 @@ def test_deleting_a_copy_requires_the_secret(
     assert response.status_code == 401
     assert len(client.get(f"/api/games/{game_id}/copies").json()) == 1
 
+
+# --- copies reach the games list ------------------------------------------
+
+
+def test_games_list_includes_copies(
+    client: TestClient, session: Session, write_headers: dict
+) -> None:
+    """The card needs platform badges, so copies travel with the list rather
+    than costing one request per game."""
+    game_id, platform_id = seed(session)
+    client.post(
+        f"/api/games/{game_id}/copies",
+        json={"platform_id": platform_id, "format": "physical"},
+        headers=write_headers,
+    )
+
+    game = next(g for g in client.get("/api/games").json() if g["id"] == game_id)
+
+    assert len(game["copies"]) == 1
+    assert game["copies"][0]["platform_name"] == "PS5"
+    assert game["copies"][0]["format"] == "physical"
+
+
+def test_games_list_gives_an_empty_copies_list_for_watching(
+    client: TestClient, session: Session
+) -> None:
+    """Absence of copies is the Watching state — an empty list, never null,
+    so consumers can always iterate without a guard."""
+    game_id, _ = seed(session)
+
+    game = next(g for g in client.get("/api/games").json() if g["id"] == game_id)
+
+    assert game["copies"] == []
+
+
+def test_creating_a_game_no_longer_requires_a_platform(
+    client: TestClient, write_headers: dict
+) -> None:
+    """Ownership moved to copies, so a game can be recorded before — or
+    without — owning it."""
+    response = client.post(
+        "/api/games",
+        json={"title": "Silksong", "status": "notPlayed"},
+        headers=write_headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["platform"] is None

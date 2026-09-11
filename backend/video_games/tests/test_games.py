@@ -42,6 +42,8 @@ def test_list_games_returns_seeded_rows(client: TestClient, session: Session) ->
         "first_release_date",
         "max_local_players",
         "max_online_players",
+        # Every way the game can be played. Empty list = tracked, not owned.
+        "copies",
     }
     assert first["title"] == "Outer Wilds"
     assert first["platform"] == "PC"
@@ -184,8 +186,8 @@ def test_export_returns_csv(client: TestClient, session: Session) -> None:
     assert "attachment" in response.headers["content-disposition"]
 
     lines = response.text.strip().splitlines()
-    assert lines[0] == "title,platform,status"
-    assert lines[1] == "Celeste,PC,completed"
+    assert lines[0] == "title,status"
+    assert lines[1] == "Celeste,completed"
 
 
 # --- CSV import -----------------------------------------------------------
@@ -197,7 +199,7 @@ def _csv_upload(body: str) -> dict:
 
 
 def test_import_inserts_rows(client: TestClient, write_headers: dict) -> None:
-    body = "title,platform,status\nChrono Trigger,SNES,beaten\nOuter Wilds,PC,completed\n"
+    body = "title,status\nChrono Trigger,beaten\nOuter Wilds,completed\n"
 
     response = client.post(
         "/api/games/import", files=_csv_upload(body), headers=write_headers
@@ -213,12 +215,12 @@ def test_import_inserts_rows(client: TestClient, write_headers: dict) -> None:
 def test_import_reports_every_bad_row_and_inserts_nothing(
     client: TestClient, write_headers: dict
 ) -> None:
-    # Row 2 is fine; row 3 has a blank title, row 4 a blank platform.
+    # Row 2 is fine; row 3 has a blank title, row 4 a blank status.
     body = (
-        "title,platform,status\n"
-        "Valid Game,PC,playing\n"
-        "   ,PS5,beaten\n"
-        "Another,,notPlayed\n"
+        "title,status\n"
+        "Valid Game,playing\n"
+        "   ,beaten\n"
+        "Another,\n"
     )
 
     response = client.post(
@@ -229,7 +231,7 @@ def test_import_reports_every_bad_row_and_inserts_nothing(
     errors = response.json()["detail"]["errors"]
     # Both failures reported, not just the first — and numbered as the user
     # sees them in a spreadsheet.
-    assert [(e["row"], e["field"]) for e in errors] == [(3, "title"), (4, "platform")]
+    assert [(e["row"], e["field"]) for e in errors] == [(3, "title"), (4, "status")]
 
     # All-or-nothing: the one valid row must NOT have been inserted.
     assert client.get("/api/games").json() == []
@@ -253,7 +255,7 @@ def test_import_rejects_header_only_file(
 ) -> None:
     response = client.post(
         "/api/games/import",
-        files=_csv_upload("title,platform,status\n"),
+        files=_csv_upload("title,status\n"),
         headers=write_headers,
     )
 
@@ -261,7 +263,7 @@ def test_import_rejects_header_only_file(
 
 
 def test_import_without_secret_is_401(client: TestClient) -> None:
-    body = "title,platform,status\nChrono Trigger,SNES,beaten\n"
+    body = "title,status\nChrono Trigger,beaten\n"
 
     response = client.post("/api/games/import", files=_csv_upload(body))
 
