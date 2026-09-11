@@ -21,6 +21,7 @@ from sqlmodel import Session, text
 import health
 from database import engine
 from video_games import igdb_routes
+from video_games import ownership_routes
 from video_games import routes as video_game_routes
 
 
@@ -70,3 +71,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(video_game_routes.router)
 app.include_router(igdb_routes.router)
+app.include_router(ownership_routes.router)

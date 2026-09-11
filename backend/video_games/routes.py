@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel
 
 from database import get_session
@@ -27,9 +28,35 @@ from video_games.igdb import (
     get_client,
 )
 from video_games.metadata import apply_igdb_detail
-from video_games.models import VideoGame, VideoGameCreate, VideoGameUpdate
+from video_games.models import (
+    Copy,
+    CopyRead,
+    VideoGame,
+    VideoGameCreate,
+    VideoGameRead,
+    VideoGameUpdate,
+)
 
 router = APIRouter()
+
+
+def _to_read(game: VideoGame) -> VideoGameRead:
+    """Flatten a game and its copies into the API response shape."""
+    return VideoGameRead(
+        **game.model_dump(),
+        copies=[
+            CopyRead(
+                id=copy.id,
+                video_game_id=copy.video_game_id,
+                platform_id=copy.platform_id,
+                platform_name=copy.platform.name,
+                format=copy.format,
+                access=copy.access,
+                borrowed_from=copy.borrowed_from,
+            )
+            for copy in game.copies
+        ],
+    )
 
 
 class IgdbApplyRequest(SQLModel):
@@ -41,11 +68,18 @@ class IgdbApplyRequest(SQLModel):
 # The CSV column order for both export and import. One tuple drives the
 # export header, the export rows, and the import's required-column check, so
 # the two halves can't drift apart.
-CSV_COLUMNS = ("title", "platform", "status")
+#
+# platform was dropped when ownership moved to the `copy` table: a game can
+# be owned on three platforms, and a single column can't say so. Rather than
+# pick one and quietly lose the rest, CSV now carries only what belongs to
+# the game itself. Copies are managed through their own endpoints.
+CSV_COLUMNS = ("title", "status")
 
 
 @router.get("/api/games")
-def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoGame]:
+def list_games(
+    session: Annotated[Session, Depends(get_session)],
+) -> list[VideoGameRead]:
     """All games in the library, unfiltered and unpaginated (fine at ~10 rows).
 
     Annotated[Session, Depends(get_session)] is FastAPI's dependency
@@ -54,10 +88,16 @@ def list_games(session: Annotated[Session, Depends(get_session)]) -> list[VideoG
     function and pass the result in, then close it after the response goes
     out. The route never manages connection lifecycle itself.
     """
-    # .all() runs the SELECT and returns a list of VideoGame objects. FastAPI
-    # then serializes them to JSON using the model's fields — the same class
-    # is the table definition AND the response schema (the SQLModel payoff).
-    return session.exec(select(VideoGame)).all()
+    # selectinload fetches every game's copies in ONE extra query instead of
+    # one per game. Without it this is the N+1 problem: 20 games would mean 21
+    # round-trips, because touching game.copies lazily triggers a SELECT each
+    # time. Two queries total, regardless of how many games there are.
+    games = session.exec(
+        select(VideoGame).options(
+            selectinload(VideoGame.copies).selectinload(Copy.platform)
+        )
+    ).all()
+    return [_to_read(game) for game in games]
 
 
 # dependencies=[...] (vs a parameter) runs the guard without handing its
@@ -67,7 +107,7 @@ def create_game(
     data: VideoGameCreate,
     session: Annotated[Session, Depends(get_session)],
     igdb: Annotated[IgdbClient, Depends(get_client)],
-) -> VideoGame:
+) -> VideoGameRead:
     """Add one game. 201 (Created) instead of the default 200.
 
     Because `data` is typed as a Pydantic model (not a dependency), FastAPI
@@ -93,7 +133,7 @@ def create_game(
     # commit() expires the in-memory object; refresh() re-reads the row so
     # the response includes the database-assigned id.
     session.refresh(game)
-    return game
+    return _to_read(game)
 
 
 @router.post(
@@ -104,7 +144,7 @@ def apply_igdb_to_game(
     session: Annotated[Session, Depends(get_session)],
     igdb: Annotated[IgdbClient, Depends(get_client)],
     data: Optional[IgdbApplyRequest] = None,
-) -> VideoGame:
+) -> VideoGameRead:
     """Re-apply IGDB metadata to an existing game.
 
     Send {"igdb_id": N} to link a game for the first time, or send nothing to
@@ -130,7 +170,7 @@ def apply_igdb_to_game(
 
     session.commit()
     session.refresh(game)
-    return game
+    return _to_read(game)
 
 
 def _fetch_detail(igdb: IgdbClient, igdb_id: int) -> IgdbGameDetail:
@@ -277,7 +317,7 @@ def update_game(
     game_id: int,
     data: VideoGameUpdate,
     session: Annotated[Session, Depends(get_session)],
-) -> VideoGame:
+) -> VideoGameRead:
     """Partially update a game. PATCH, not PUT: send only what changes.
 
     `game_id` is declared in the path ("/api/games/{game_id}") and as a
@@ -304,7 +344,7 @@ def update_game(
     session.add(game)
     session.commit()
     session.refresh(game)
-    return game
+    return _to_read(game)
 
 
 @router.delete(
